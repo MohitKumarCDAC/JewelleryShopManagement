@@ -7,6 +7,8 @@ import com.jewellery.jewelleryshop.repository.CustomerRepositry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class CustomerServiceImpl implements CustomerService{
 
@@ -58,6 +60,27 @@ public class CustomerServiceImpl implements CustomerService{
                 .customerName(updateCustomer.getCustomerName())
                 .mobileNumber(updateCustomer.getMobileNumber())
                 .place(updateCustomer.getPlace()).build();
+    }
+
+    @Override
+    public void deleteCustomer(String mobileNumber){
+        Customer customer=customerRepositry.findByMobileNumber(mobileNumber)
+                .orElseThrow(()->new RuntimeException("Customer Not Found"));
+
+        customerRepositry.delete(customer);
+    }
+
+
+    @Override
+    public List<CustomerDto> getAllCustomers()
+    {
+        return customerRepositry.findAll()
+                .stream().map(customer -> CustomerDto.builder()
+                        .customerName(customer.getCustomerName())
+                        .mobileNumber(customer.getMobileNumber())
+                        .place(customer.getPlace()).build()).toList();
+
+
     }
 
 

@@ -6,6 +6,8 @@ import com.jewellery.jewelleryshop.services.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/customers")
 public class CustomerController {
@@ -29,6 +31,19 @@ public class CustomerController {
     public CustomerDto updateCustomer(@PathVariable String mobileNumber, @RequestBody CustomerDto customerDto){
         return
                 customerService.updateCustomer(mobileNumber,customerDto);
+    }
+
+    @DeleteMapping("/{mobileNumber}")
+    public String deleteCustomer(@PathVariable String mobileNumber)
+    {
+        customerService.deleteCustomer(mobileNumber);
+        return "Customer Deleted Successfully";
+    }
+
+    @GetMapping
+    public List<CustomerDto> getAllCustomers()
+    {
+        return customerService.getAllCustomers();
     }
 
 }
