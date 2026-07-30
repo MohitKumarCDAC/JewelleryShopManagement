@@ -17,5 +17,5 @@ public class DashboardDto {
     private Long totalBills;
     private Long totalPayments;
     private BigDecimal totalSales;
-    private BigDecimal TotalDueAmount;
+    private BigDecimal totalDueAmount;
 }
