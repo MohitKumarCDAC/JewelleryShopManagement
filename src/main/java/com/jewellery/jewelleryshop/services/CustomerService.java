@@ -1,6 +1,7 @@
 package com.jewellery.jewelleryshop.services;
 
 import com.jewellery.jewelleryshop.dto.CustomerDto;
+import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 
 import java.util.List;
 
@@ -22,6 +23,6 @@ public interface CustomerService {
     //getAll customer
     List<CustomerDto> getAllCustomers();
 
-
+    CustomerPurchaseHistoryDto getCustomerPurchaseHistory(String mobileNumber);
 
 }
