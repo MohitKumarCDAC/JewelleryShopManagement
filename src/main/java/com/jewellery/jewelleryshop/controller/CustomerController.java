@@ -2,6 +2,7 @@ package com.jewellery.jewelleryshop.controller;
 
 
 import com.jewellery.jewelleryshop.dto.CustomerDto;
+import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 import com.jewellery.jewelleryshop.services.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +45,12 @@ public class CustomerController {
     public List<CustomerDto> getAllCustomers()
     {
         return customerService.getAllCustomers();
+    }
+
+    @GetMapping("/history/{mobileNumber}")
+    public CustomerPurchaseHistoryDto getCustomerPurchaseHistory(@PathVariable String mobileNumber)
+    {
+        return customerService.getCustomerPurchaseHistory(mobileNumber);
     }
 
 }

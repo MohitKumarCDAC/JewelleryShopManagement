@@ -2,18 +2,29 @@ package com.jewellery.jewelleryshop.services;
 
 
 import com.jewellery.jewelleryshop.dto.CustomerDto;
+import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
+import com.jewellery.jewelleryshop.entity.Bill;
 import com.jewellery.jewelleryshop.entity.Customer;
+import com.jewellery.jewelleryshop.repository.BillRepository;
 import com.jewellery.jewelleryshop.repository.CustomerRepositry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import com.jewellery.jewelleryshop.entity.Bill;
 
 @Service
 public class CustomerServiceImpl implements CustomerService{
 
     @Autowired
     private CustomerRepositry customerRepositry;
+
+    @Autowired
+    private BillRepository billRepository;
+
+
 
     @Override
     public CustomerDto saveCustomer(CustomerDto customerDto){
@@ -81,6 +92,52 @@ public class CustomerServiceImpl implements CustomerService{
                         .place(customer.getPlace()).build()).toList();
 
 
+    }
+
+    @Override
+    public CustomerPurchaseHistoryDto getCustomerPurchaseHistory(String mobileNumber)
+    {
+        List<Bill> bills=billRepository.findByCustomer_MobileNumber(mobileNumber);
+
+        if(bills.isEmpty())
+        {
+            throw new RuntimeException("No Purchase History found for this mobile number");
+        }
+
+        Customer customer=bills.get(0).getCustomer();
+
+        BigDecimal totalPurchaseAmount=BigDecimal.ZERO;
+        BigDecimal totalPaidAmount=BigDecimal.ZERO;
+        BigDecimal totalDueAmount=BigDecimal.ZERO;
+
+        List<String> billsNumber=new ArrayList<>();
+
+        for(Bill bill:bills)
+        {
+            if(bill.getGrandTotal()!=null)
+            {
+                totalPurchaseAmount=totalPurchaseAmount.add(bill.getGrandTotal());
+            }
+            if(bill.getPaidAmount()!=null)
+            {
+                totalPaidAmount=totalPaidAmount.add(bill.getPaidAmount());
+            }
+            if(bill.getDueAmount()!=null)
+            {
+                totalDueAmount=totalPaidAmount.add(bill.getDueAmount());
+            }
+            billsNumber.add(bill.getBillNumber());
+        }
+        return
+                CustomerPurchaseHistoryDto.builder()
+                        .customerName(customer.getCustomerName())
+                        .mobileNumber(customer.getMobileNumber())
+                        .totalBills((long)bills.size())
+                        .totalPurchaseAmount(totalPurchaseAmount)
+                        .totalPaidAmount(totalPaidAmount)
+                        .totalDueAmount(totalDueAmount)
+                        .billNumbers(billsNumber)
+                        .build();
     }
 
 
