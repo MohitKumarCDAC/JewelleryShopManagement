@@ -10,17 +10,11 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DashboardDto {
-
-    private Long totalCustomers;
-
-    private Long totalJewelleryItems;
+public class DailySalesReportDto {
 
     private Long totalBills;
-
-    private Long totalPayments;
-
     private BigDecimal totalSales;
-
+    private BigDecimal totalPaidAmount;
     private BigDecimal totalDueAmount;
+    private Long totalCustomers;
 }
