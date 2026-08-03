@@ -12,10 +12,14 @@ import java.util.Optional;
 @Repository
 public interface BillRepository extends JpaRepository<Bill,Long> {
 
-    Optional<Bill> findByBillNumber(String billNumber);
+   Optional<Bill> findByBillNumber(String billNumber);
 
 
     List<Bill> findByCustomer_MobileNumber(String mobileNumber);
 
     List<Bill> findByBillDateBetween(LocalDateTime startDate,LocalDateTime endDate);
+
+
+    // Latest Bill Number
+    Optional<Bill> findTopByOrderByIdDesc();
 }

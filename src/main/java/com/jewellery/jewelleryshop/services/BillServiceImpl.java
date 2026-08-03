@@ -38,7 +38,7 @@ public class BillServiceImpl  implements BillService{
 
         //Bill create
         Bill bill=Bill.builder()
-                .billNumber(billDto.getBillNumber())
+                .billNumber(generateBillNumber())
                 .customer(customer)
                 .discount(billDto.getDiscount())
                 .paidAmount(billDto.getPaidAmount())
@@ -178,5 +178,27 @@ public class BillServiceImpl  implements BillService{
                 .paymentMode(bill.getPaymentMode())
                 .status(bill.getStatus())
                 .build();
+    }
+
+//autogenerate bill number
+    private String generateBillNumber() {
+
+        return billRepository.findTopByOrderByIdDesc()
+                .map(lastBill -> {
+
+                    String lastBillNumber = lastBill.getBillNumber();
+
+                    String numberPart =
+                            lastBillNumber.replace("BILL-", "");
+
+                    int nextNumber =
+                            Integer.parseInt(numberPart) + 1;
+
+                    return String.format(
+                            "BILL-%04d",
+                            nextNumber
+                    );
+                })
+                .orElse("BILL-0001");
     }
 }
