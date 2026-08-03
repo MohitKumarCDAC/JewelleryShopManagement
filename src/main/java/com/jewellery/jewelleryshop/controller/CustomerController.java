@@ -1,6 +1,7 @@
 package com.jewellery.jewelleryshop.controller;
 
 
+import com.jewellery.jewelleryshop.dto.CustomerBillingInfoDto;
 import com.jewellery.jewelleryshop.dto.CustomerDto;
 import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 import com.jewellery.jewelleryshop.services.CustomerService;
@@ -51,6 +52,14 @@ public class CustomerController {
     public CustomerPurchaseHistoryDto getCustomerPurchaseHistory(@PathVariable String mobileNumber)
     {
         return customerService.getCustomerPurchaseHistory(mobileNumber);
+    }
+
+
+    @GetMapping("/billing-info/{mobileNumber}")
+    public CustomerBillingInfoDto getCustomerBillingInfo(
+            @PathVariable String mobileNumber) {
+
+        return customerService.getCustomerBillingInfo(mobileNumber);
     }
 
 }

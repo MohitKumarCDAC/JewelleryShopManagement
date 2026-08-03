@@ -6,9 +6,8 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-
 @Entity
-@Table(name="bills")
+@Table(name = "bills")
 @Setter
 @Getter
 @NoArgsConstructor
@@ -20,19 +19,25 @@ public class Bill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false,unique = true)
+    @Column(nullable = false, unique = true)
     private String billNumber;
 
     @ManyToOne
-    @JoinColumn(name="customer_id")
+    @JoinColumn(name = "customer_id")
     private Customer customer;
 
     private LocalDateTime billDate;
+
     private BigDecimal totalAmount;
+
     private BigDecimal discount;
+
     private BigDecimal gstAmount;
+
     private BigDecimal grandTotal;
-    private  BigDecimal paidAmount;
+
+    private BigDecimal paidAmount;
+
     private BigDecimal dueAmount;
 
     @Enumerated(EnumType.STRING)
@@ -42,7 +47,7 @@ public class Bill {
     private PaymentMode paymentMode;
 
     @PrePersist
-    public void prePersist(){
-        this.billDate=LocalDateTime.now();
+    public void prePersist() {
+        this.billDate = LocalDateTime.now();
     }
 }

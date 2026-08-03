@@ -1,16 +1,15 @@
 package com.jewellery.jewelleryshop.entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name="jewellery_items")
+@Table(name = "jewellery_items")
 @Getter
-@Setter@NoArgsConstructor
+@Setter
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class JewelleryItem {
@@ -19,7 +18,7 @@ public class JewelleryItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false,unique = true)
+    @Column(nullable = false, unique = true)
     private String itemCode;
 
     @Column(nullable = false)
@@ -31,24 +30,14 @@ public class JewelleryItem {
     @Enumerated(EnumType.STRING)
     private Purity purity;
 
-    private Double grossWeight;
-
-    private Double netWeight;
-
-    private BigDecimal makingCharge;
-
-    private Double gst;
-
-    private BigDecimal price;
+    private Double weight;
 
     private Integer stockQuantity;
 
     private LocalDateTime createdDate;
 
     @PrePersist
-    public void prePersist(){
-        this.createdDate=LocalDateTime.now();
+    public void prePersist() {
+        this.createdDate = LocalDateTime.now();
     }
-
-
 }

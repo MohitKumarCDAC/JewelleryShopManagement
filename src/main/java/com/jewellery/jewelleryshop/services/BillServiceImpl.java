@@ -9,9 +9,9 @@ import com.jewellery.jewelleryshop.repository.CustomerRepositry;
 import com.jewellery.jewelleryshop.repository.JewelleryItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -30,137 +30,121 @@ public class BillServiceImpl implements BillService {
     private JewelleryItemRepository jewelleryItemRepository;
 
 
-    // ==========================================
-    // AUTO GENERATE BILL NUMBER
-    // ==========================================
-
-    private String generateBillNumber() {
-
-        return billRepository.findTopByOrderByIdDesc()
-                .map(lastBill -> {
-
-                    String lastBillNumber = lastBill.getBillNumber();
-
-                    String numberPart =
-                            lastBillNumber.replace("BILL-", "");
-
-                    int nextNumber =
-                            Integer.parseInt(numberPart) + 1;
-
-                    return String.format(
-                            "BILL-%04d",
-                            nextNumber
-                    );
-                })
-                .orElse("BILL-0001");
-    }
-
-
-    // ==========================================
+    // ==============================
     // CREATE BILL
-    // ==========================================
+    // ==============================
 
     @Override
+    @Transactional
     public BillDto createBill(BillDto billDto) {
 
-        // ==========================================
-        // CUSTOMER FETCH
-        // ==========================================
-
-        Customer customer =
-                customerRepositry
-                        .findByMobileNumber(
-                                billDto.getCustomerMobile()
-                        )
-                        .orElseThrow(
-                                () -> new RuntimeException(
-                                        "Customer Not Found"
-                                )
-                        );
+        // Customer fetch
+        Customer customer = customerRepositry
+                .findByMobileNumber(billDto.getCustomerMobile())
+                .orElseThrow(() ->
+                        new RuntimeException("Customer Not Found"));
 
 
-        // ==========================================
-        // BASIC VALUES
-        // ==========================================
-
-        BigDecimal discount =
-                billDto.getDiscount() != null
-                        ? billDto.getDiscount()
-                        : BigDecimal.ZERO;
-
-        BigDecimal paidAmount =
-                billDto.getPaidAmount() != null
-                        ? billDto.getPaidAmount()
-                        : BigDecimal.ZERO;
+        // Generate Bill Number automatically
+        String billNumber = generateBillNumber();
 
 
-        // ==========================================
-        // CREATE BILL
-        // ==========================================
-
+        // Create Bill
         Bill bill = Bill.builder()
-                .billNumber(generateBillNumber())
+                .billNumber(billNumber)
                 .customer(customer)
-                .discount(discount)
-                .paidAmount(paidAmount)
+                .discount(
+                        billDto.getDiscount() == null
+                                ? BigDecimal.ZERO
+                                : billDto.getDiscount()
+                )
+                .paidAmount(
+                        billDto.getPaidAmount() == null
+                                ? BigDecimal.ZERO
+                                : billDto.getPaidAmount()
+                )
                 .paymentMode(billDto.getPaymentMode())
-                .status(billDto.getStatus())
+                .status(BillStatus.PARTIAL)
                 .build();
 
 
-        // ==========================================
-        // TOTAL AMOUNT
-        // ==========================================
-
-        BigDecimal totalAmount = BigDecimal.ZERO;
-
-
-        // ==========================================
-        // SAVE BILL FIRST
-        // ==========================================
-
+        // Save Bill first
         Bill savedBill = billRepository.save(bill);
 
 
-        // ==========================================
-        // LOOP THROUGH BILL ITEMS
-        // ==========================================
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalGst = BigDecimal.ZERO;
+
+
+        // ==============================
+        // ITEMS
+        // ==============================
 
         for (BillItemDto itemDto : billDto.getItems()) {
 
             JewelleryItem jewelleryItem =
                     jewelleryItemRepository
-                            .findByItemCode(
-                                    itemDto.getItemCode()
-                            )
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "Item not found: "
+                            .findByItemCode(itemDto.getItemCode())
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Item Not Found: "
                                                     + itemDto.getItemCode()
-                                    )
-                            );
+                                    ));
 
 
-            // ==========================================
-            // STOCK CHECK
-            // ==========================================
-
-            if (jewelleryItem.getStockQuantity()
-                    < itemDto.getQuantity()) {
+            // Quantity validation
+            if (itemDto.getQuantity() == null ||
+                    itemDto.getQuantity() <= 0) {
 
                 throw new RuntimeException(
-                        "Insufficient Stock for item: "
+                        "Quantity must be greater than zero"
+                );
+            }
+
+
+            // Stock check
+            if (jewelleryItem.getStockQuantity() == null ||
+                    jewelleryItem.getStockQuantity()
+                            < itemDto.getQuantity()) {
+
+                throw new RuntimeException(
+                        "Insufficient Stock for Item: "
                                 + itemDto.getItemCode()
                 );
             }
 
 
-            // ==========================================
-            // ITEM PRICE
-            // ==========================================
+            // Required billing values
+            if (itemDto.getMetalRate() == null ||
+                    itemDto.getMetalRate()
+                            .compareTo(BigDecimal.ZERO) <= 0) {
 
-            BigDecimal price =
-                    jewelleryItem.getPrice();
+                throw new RuntimeException(
+                        "Metal rate must be greater than zero"
+                );
+            }
+
+
+            BigDecimal makingPercent =
+                    itemDto.getMakingChargePercent() == null
+                            ? BigDecimal.ZERO
+                            : itemDto.getMakingChargePercent();
+
+
+            BigDecimal gstPercent =
+                    itemDto.getGstPercent() == null
+                            ? BigDecimal.ZERO
+                            : itemDto.getGstPercent();
+
+
+            // ==============================
+            // METAL VALUE
+            // ==============================
+
+            BigDecimal weight =
+                    BigDecimal.valueOf(
+                            jewelleryItem.getWeight()
+                    );
 
 
             BigDecimal quantity =
@@ -169,95 +153,81 @@ public class BillServiceImpl implements BillService {
                     );
 
 
-            // Price × Quantity
+            BigDecimal metalAmount =
+                    weight
+                            .multiply(quantity)
+                            .multiply(itemDto.getMetalRate());
 
-            BigDecimal itemPrice =
-                    price.multiply(quantity);
 
-
-            // ==========================================
-            // MAKING CHARGE %
-            // ==========================================
-
-            BigDecimal makingChargePercent =
-                    jewelleryItem.getMakingCharge() != null
-                            ? jewelleryItem.getMakingCharge()
-                            : BigDecimal.ZERO;
-
+            // ==============================
+            // MAKING CHARGE
+            // ==============================
 
             BigDecimal makingChargeAmount =
-                    itemPrice
-                            .multiply(makingChargePercent)
+                    metalAmount
+                            .multiply(makingPercent)
                             .divide(
-                                    BigDecimal.valueOf(100),
-                                    2,
-                                    RoundingMode.HALF_UP
+                                    BigDecimal.valueOf(100)
                             );
 
 
-            // ==========================================
-            // GST %
-            // ==========================================
-
-            Double gstValue =
-                    jewelleryItem.getGst() != null
-                            ? jewelleryItem.getGst()
-                            : 0.0;
-
-
-            BigDecimal gstPercent =
-                    BigDecimal.valueOf(gstValue);
-
-
-            // GST taxable amount
-            // = Item Price + Making Charge
+            // ==============================
+            // TAXABLE AMOUNT
+            // ==============================
 
             BigDecimal taxableAmount =
-                    itemPrice.add(
-                            makingChargeAmount
-                    );
+                    metalAmount
+                            .add(makingChargeAmount);
 
+
+            // ==============================
+            // GST
+            // ==============================
 
             BigDecimal gstAmount =
                     taxableAmount
                             .multiply(gstPercent)
                             .divide(
-                                    BigDecimal.valueOf(100),
-                                    2,
-                                    RoundingMode.HALF_UP
+                                    BigDecimal.valueOf(100)
                             );
 
 
-            // ==========================================
+            // ==============================
             // ITEM TOTAL
-            // ==========================================
+            // ==============================
 
             BigDecimal itemTotal =
                     taxableAmount.add(gstAmount);
 
 
-            // Add to bill total
-
             totalAmount =
-                    totalAmount.add(itemTotal);
+                    totalAmount.add(
+                            metalAmount
+                                    .add(makingChargeAmount)
+                    );
 
 
-            // ==========================================
+            totalGst =
+                    totalGst.add(gstAmount);
+
+
+            // ==============================
             // SAVE BILL ITEM
-            // ==========================================
+            // ==============================
 
             BillItem billItem =
                     BillItem.builder()
                             .bill(savedBill)
                             .jewelleryItem(jewelleryItem)
-                            .quantity(
-                                    itemDto.getQuantity()
+                            .quantity(itemDto.getQuantity())
+                            .metalRate(itemDto.getMetalRate())
+                            .metalAmount(metalAmount)
+                            .makingChargePercent(makingPercent)
+                            .makingChargeAmount(
+                                    makingChargeAmount
                             )
-                            .price(price)
-                            .makingCharge(
-                                    makingChargePercent
-                            )
-                            .gst(gstValue)
+                            .gstPercent(gstPercent)
+                            .gstAmount(gstAmount)
                             .total(itemTotal)
                             .build();
 
@@ -265,37 +235,44 @@ public class BillServiceImpl implements BillService {
             billItemRepository.save(billItem);
 
 
-            // ==========================================
+            // ==============================
             // REDUCE STOCK
-            // ==========================================
+            // ==============================
 
             jewelleryItem.setStockQuantity(
                     jewelleryItem.getStockQuantity()
                             - itemDto.getQuantity()
             );
 
-            jewelleryItemRepository.save(
-                    jewelleryItem
-            );
+
+            jewelleryItemRepository.save(jewelleryItem);
         }
 
 
-        // ==========================================
-        // SET TOTAL AMOUNT
-        // ==========================================
+        // ==============================
+        // DISCOUNT
+        // ==============================
 
+        BigDecimal discount =
+                savedBill.getDiscount() == null
+                        ? BigDecimal.ZERO
+                        : savedBill.getDiscount();
+
+
+        // Total before GST
         savedBill.setTotalAmount(totalAmount);
 
 
-        // ==========================================
-        // GRAND TOTAL
-        // ==========================================
+        // GST
+        savedBill.setGstAmount(totalGst);
 
+
+        // Grand total
         BigDecimal grandTotal =
-                totalAmount.subtract(discount);
+                totalAmount
+                        .add(totalGst)
+                        .subtract(discount);
 
-
-        // Negative Grand Total avoid
 
         if (grandTotal.compareTo(BigDecimal.ZERO) < 0) {
             grandTotal = BigDecimal.ZERO;
@@ -305,90 +282,63 @@ public class BillServiceImpl implements BillService {
         savedBill.setGrandTotal(grandTotal);
 
 
-        // ==========================================
-        // DUE AMOUNT
-        // ==========================================
+        // ==============================
+        // PAID AMOUNT
+        // ==============================
+
+        BigDecimal paidAmount =
+                savedBill.getPaidAmount() == null
+                        ? BigDecimal.ZERO
+                        : savedBill.getPaidAmount();
+
+
+        if (paidAmount.compareTo(grandTotal) > 0) {
+
+            throw new RuntimeException(
+                    "Paid amount cannot be greater than Grand Total"
+            );
+        }
+
+
+        // ==============================
+        // DUE
+        // ==============================
 
         BigDecimal dueAmount =
                 grandTotal.subtract(paidAmount);
 
 
-        // Negative Due avoid
-
-        if (dueAmount.compareTo(BigDecimal.ZERO) < 0) {
-            dueAmount = BigDecimal.ZERO;
-        }
-
-
         savedBill.setDueAmount(dueAmount);
 
 
-        // ==========================================
-        // SET BILL STATUS
-        // ==========================================
+        // ==============================
+        // STATUS
+        // ==============================
 
         if (dueAmount.compareTo(BigDecimal.ZERO) == 0) {
 
-            savedBill.setStatus(
-                    BillStatus.PAID
-            );
+            savedBill.setStatus(BillStatus.PAID);
 
-        } else if (
-                paidAmount.compareTo(BigDecimal.ZERO) > 0
-        ) {
+        } else if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
 
-            savedBill.setStatus(
-                    BillStatus.PARTIAL
-            );
+            savedBill.setStatus(BillStatus.PARTIAL);
 
         } else {
 
-            savedBill.setStatus(
-                    BillStatus.PARTIAL
-            );
+            savedBill.setStatus(BillStatus.PARTIAL);
         }
 
-
-        // ==========================================
-        // SAVE FINAL BILL
-        // ==========================================
 
         billRepository.save(savedBill);
 
 
-        // ==========================================
-        // RETURN RESPONSE
-        // ==========================================
-
-        return BillDto.builder()
-                .billNumber(
-                        savedBill.getBillNumber()
-                )
-                .customerMobile(
-                        customer.getMobileNumber()
-                )
-                .items(
-                        billDto.getItems()
-                )
-                .discount(
-                        savedBill.getDiscount()
-                )
-                .paidAmount(
-                        savedBill.getPaidAmount()
-                )
-                .paymentMode(
-                        savedBill.getPaymentMode()
-                )
-                .status(
-                        savedBill.getStatus()
-                )
-                .build();
+        return convertToDto(savedBill);
     }
 
 
-    // ==========================================
-    // GET BILL BY BILL NUMBER
-    // ==========================================
+    // ==============================
+    // GET BILL
+    // ==============================
 
     @Override
     public BillDto getBillByBillNumber(
@@ -398,99 +348,36 @@ public class BillServiceImpl implements BillService {
         Bill bill =
                 billRepository
                         .findByBillNumber(billNumber)
-                        .orElseThrow(
-                                () -> new RuntimeException(
-                                        "Bill not found"
-                                )
-                        );
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Bill Not Found"
+                                ));
 
-        return BillDto.builder()
-                .billNumber(
-                        bill.getBillNumber()
-                )
-                .customerMobile(
-                        bill.getCustomer()
-                                .getMobileNumber()
-                )
-                .discount(
-                        bill.getDiscount()
-                )
-                .paidAmount(
-                        bill.getPaidAmount()
-                )
-                .paymentMode(
-                        bill.getPaymentMode()
-                )
-                .status(
-                        bill.getStatus()
-                )
-                .build();
+
+        return convertToDto(bill);
     }
 
 
-    // ==========================================
+    // ==============================
     // GET ALL BILLS
-    // ==========================================
+    // ==============================
 
     @Override
     public List<BillDto> getAllBills() {
 
         return billRepository.findAll()
                 .stream()
-                .map(bill ->
-                        BillDto.builder()
-                                .billNumber(
-                                        bill.getBillNumber()
-                                )
-                                .customerMobile(
-                                        bill.getCustomer()
-                                                .getMobileNumber()
-                                )
-                                .discount(
-                                        bill.getDiscount()
-                                )
-                                .paidAmount(
-                                        bill.getPaidAmount()
-                                )
-                                .paymentMode(
-                                        bill.getPaymentMode()
-                                )
-                                .status(
-                                        bill.getStatus()
-                                )
-                                .build()
-                )
+                .map(this::convertToDto)
                 .toList();
     }
 
 
-    // ==========================================
-    // DELETE BILL
-    // ==========================================
+    // ==============================
+    // PAY DUE
+    // ==============================
 
     @Override
-    public void deleteBill(
-            String billNumber
-    ) {
-
-        Bill bill =
-                billRepository
-                        .findByBillNumber(billNumber)
-                        .orElseThrow(
-                                () -> new RuntimeException(
-                                        "Bill Not Found"
-                                )
-                        );
-
-        billRepository.delete(bill);
-    }
-
-
-    // ==========================================
-    // PAY DUE AMOUNT
-    // ==========================================
-
-    @Override
+    @Transactional
     public BillDto payDueAmount(
             String billNumber,
             BigDecimal amount
@@ -499,77 +386,132 @@ public class BillServiceImpl implements BillService {
         Bill bill =
                 billRepository
                         .findByBillNumber(billNumber)
-                        .orElseThrow(
-                                () -> new RuntimeException(
+                        .orElseThrow(() ->
+                                new RuntimeException(
                                         "Bill Not Found"
-                                )
-                        );
+                                ));
 
 
-        // New Paid Amount
+        if (amount == null ||
+                amount.compareTo(BigDecimal.ZERO) <= 0) {
+
+            throw new RuntimeException(
+                    "Payment amount must be greater than zero"
+            );
+        }
+
 
         BigDecimal newPaid =
                 bill.getPaidAmount()
                         .add(amount);
 
 
+        if (newPaid.compareTo(
+                bill.getGrandTotal()
+        ) > 0) {
+
+            throw new RuntimeException(
+                    "Payment cannot be greater than due amount"
+            );
+        }
+
+
         bill.setPaidAmount(newPaid);
 
-
-        // New Due
 
         BigDecimal due =
                 bill.getGrandTotal()
                         .subtract(newPaid);
 
 
-        if (due.compareTo(BigDecimal.ZERO) < 0) {
-            due = BigDecimal.ZERO;
-        }
-
-
         bill.setDueAmount(due);
 
 
-        // Status
-
         if (due.compareTo(BigDecimal.ZERO) == 0) {
 
-            bill.setStatus(
-                    BillStatus.PAID
-            );
+            bill.setStatus(BillStatus.PAID);
 
         } else {
 
-            bill.setStatus(
-                    BillStatus.PARTIAL
-            );
+            bill.setStatus(BillStatus.PARTIAL);
         }
 
 
         billRepository.save(bill);
 
 
+        return convertToDto(bill);
+    }
+
+
+    // ==============================
+    // DELETE BILL
+    // ==============================
+
+    @Override
+    @Transactional
+    public void deleteBill(String billNumber) {
+
+        Bill bill =
+                billRepository
+                        .findByBillNumber(billNumber)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Bill Not Found"
+                                ));
+
+
+        billRepository.delete(bill);
+    }
+
+
+    // ==============================
+    // GENERATE BILL NUMBER
+    // ==============================
+
+    private String generateBillNumber() {
+
+        long count =
+                billRepository.count() + 1;
+
+        return String.format(
+                "BILL%05d",
+                count
+        );
+    }
+
+
+    // ==============================
+    // DTO CONVERTER
+    // ==============================
+
+    private BillDto convertToDto(Bill bill) {
+
         return BillDto.builder()
-                .billNumber(
-                        bill.getBillNumber()
-                )
+                .billNumber(bill.getBillNumber())
                 .customerMobile(
                         bill.getCustomer()
                                 .getMobileNumber()
                 )
-                .discount(
-                        bill.getDiscount()
-                )
-                .paidAmount(
-                        bill.getPaidAmount()
-                )
-                .paymentMode(
-                        bill.getPaymentMode()
-                )
-                .status(
-                        bill.getStatus()
-                )
+                .discount(bill.getDiscount())
+                .paidAmount(bill.getPaidAmount())
+                .paymentMode(bill.getPaymentMode())
+                .status(bill.getStatus())
+                .totalAmount(bill.getTotalAmount())
+                .gstAmount(bill.getGstAmount())
+                .grandTotal(bill.getGrandTotal())
+                .dueAmount(bill.getDueAmount())
                 .build();
+    }
+
+//customer ka total bill history
+    @Override
+    public List<BillDto> getBillsByCustomerMobile(String mobileNumber) {
+
+        return billRepository
+                .findByCustomer_MobileNumber(mobileNumber)
+                .stream()
+                .map(this::convertToDto)
+                .toList();
     }
 }

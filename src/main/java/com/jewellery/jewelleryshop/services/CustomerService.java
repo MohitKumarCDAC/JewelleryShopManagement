@@ -1,5 +1,6 @@
 package com.jewellery.jewelleryshop.services;
 
+import com.jewellery.jewelleryshop.dto.CustomerBillingInfoDto;
 import com.jewellery.jewelleryshop.dto.CustomerDto;
 import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 
@@ -24,5 +25,7 @@ public interface CustomerService {
     List<CustomerDto> getAllCustomers();
 
     CustomerPurchaseHistoryDto getCustomerPurchaseHistory(String mobileNumber);
+
+    CustomerBillingInfoDto getCustomerBillingInfo(String mobileNumber);
 
 }

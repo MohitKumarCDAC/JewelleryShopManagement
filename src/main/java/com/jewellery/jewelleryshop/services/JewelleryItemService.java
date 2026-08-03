@@ -14,6 +14,5 @@ public interface JewelleryItemService {
 
     JewelleryItemDto updateItem(String itemCode, JewelleryItemDto dto);
 
-
     void deleteItem(String itemCode);
 }

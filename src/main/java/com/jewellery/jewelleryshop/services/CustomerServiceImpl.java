@@ -1,6 +1,7 @@
 package com.jewellery.jewelleryshop.services;
 
 
+import com.jewellery.jewelleryshop.dto.CustomerBillingInfoDto;
 import com.jewellery.jewelleryshop.dto.CustomerDto;
 import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 import com.jewellery.jewelleryshop.entity.Bill;
@@ -124,7 +125,7 @@ public class CustomerServiceImpl implements CustomerService{
             }
             if(bill.getDueAmount()!=null)
             {
-                totalDueAmount=totalPaidAmount.add(bill.getDueAmount());
+                totalDueAmount=totalDueAmount.add(bill.getDueAmount());
             }
             billsNumber.add(bill.getBillNumber());
         }
@@ -138,6 +139,36 @@ public class CustomerServiceImpl implements CustomerService{
                         .totalDueAmount(totalDueAmount)
                         .billNumbers(billsNumber)
                         .build();
+    }
+
+
+    @Override
+    public CustomerBillingInfoDto getCustomerBillingInfo(String mobileNumber) {
+
+        Customer customer = customerRepositry
+                .findByMobileNumber(mobileNumber)
+                .orElseThrow(() ->
+                        new RuntimeException("Customer Not Found"));
+
+        List<Bill> bills =
+                billRepository.findByCustomer_MobileNumber(mobileNumber);
+
+        BigDecimal totalDueAmount = BigDecimal.ZERO;
+
+        for (Bill bill : bills) {
+
+            if (bill.getDueAmount() != null) {
+
+                totalDueAmount =
+                        totalDueAmount.add(bill.getDueAmount());
+            }
+        }
+
+        return CustomerBillingInfoDto.builder()
+                .customerName(customer.getCustomerName())
+                .mobileNumber(customer.getMobileNumber())
+                .totalDueAmount(totalDueAmount)
+                .build();
     }
 
 
