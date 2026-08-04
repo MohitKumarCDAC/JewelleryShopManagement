@@ -21,5 +21,5 @@ public interface BillService {
     void deleteBill(String billNumber);
 
 //customer ka sara bill
-    List<BillDto> getBillsByCustomerMobile(String mobileNumber);
+   List<BillDto> getBillsByCustomerMobile(String mobileNumber);
 }

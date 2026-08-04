@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -141,10 +142,7 @@ public class BillServiceImpl implements BillService {
             // METAL VALUE
             // ==============================
 
-            BigDecimal weight =
-                    BigDecimal.valueOf(
-                            jewelleryItem.getWeight()
-                    );
+            BigDecimal weight = jewelleryItem.getWeight();
 
 
             BigDecimal quantity =
@@ -371,6 +369,20 @@ public class BillServiceImpl implements BillService {
                 .toList();
     }
 
+    // ==============================
+// GET CUSTOMER ALL BILLS
+// ==============================
+
+    @Override
+    public List<BillDto> getBillsByCustomerMobile(String mobileNumber) {
+
+        return billRepository
+                .findByCustomer_MobileNumber(mobileNumber)
+                .stream()
+                .map(this::convertToDto)
+                .toList();
+    }
+
 
     // ==============================
     // PAY DUE
@@ -480,38 +492,119 @@ public class BillServiceImpl implements BillService {
         );
     }
 
-
-    // ==============================
-    // DTO CONVERTER
-    // ==============================
+// ==============================
+// DTO CONVERTER
+// ==============================
 
     private BillDto convertToDto(Bill bill) {
 
+        // Bill ke saare items database se fetch karna
+        List<BillItem> billItems =
+                billItemRepository.findByBill(bill);
+
+        List<BillItemDto> itemDtos = new ArrayList<>();
+
+        for (BillItem billItem : billItems) {
+
+            JewelleryItem item =
+                    billItem.getJewelleryItem();
+
+            BillItemDto itemDto =
+                    BillItemDto.builder()
+
+                            .itemCode(
+                                    item.getItemCode()
+                            )
+
+                            .itemName(
+                                    item.getItemName()
+                            )
+
+                            .quantity(
+                                    billItem.getQuantity()
+                            )
+
+                            .weight(
+                                    item.getWeight()
+                            )
+
+                            .metalRate(
+                                    billItem.getMetalRate()
+                            )
+
+                            .makingChargePercent(
+                                    billItem.getMakingChargePercent()
+                            )
+
+                            .gstPercent(
+                                    billItem.getGstPercent()
+                            )
+
+                            .total(
+                                    billItem.getTotal()
+                            )
+
+                            .build();
+
+            itemDtos.add(itemDto);
+        }
+
+
+        // ==============================
+        // BILL DTO
+        // ==============================
+
         return BillDto.builder()
-                .billNumber(bill.getBillNumber())
+
+                .billNumber(
+                        bill.getBillNumber()
+                )
+
+                .billDate(
+                        bill.getBillDate()
+                )
+
                 .customerMobile(
                         bill.getCustomer()
                                 .getMobileNumber()
                 )
-                .discount(bill.getDiscount())
-                .paidAmount(bill.getPaidAmount())
-                .paymentMode(bill.getPaymentMode())
-                .status(bill.getStatus())
-                .totalAmount(bill.getTotalAmount())
-                .gstAmount(bill.getGstAmount())
-                .grandTotal(bill.getGrandTotal())
-                .dueAmount(bill.getDueAmount())
+
+                .items(
+                        itemDtos
+                )
+
+                .discount(
+                        bill.getDiscount()
+                )
+
+                .paidAmount(
+                        bill.getPaidAmount()
+                )
+
+                .paymentMode(
+                        bill.getPaymentMode()
+                )
+
+                .status(
+                        bill.getStatus()
+                )
+
+                .totalAmount(
+                        bill.getTotalAmount()
+                )
+
+                .gstAmount(
+                        bill.getGstAmount()
+                )
+
+                .grandTotal(
+                        bill.getGrandTotal()
+                )
+
+                .dueAmount(
+                        bill.getDueAmount()
+                )
+
                 .build();
-    }
-
-//customer ka total bill history
-    @Override
-    public List<BillDto> getBillsByCustomerMobile(String mobileNumber) {
-
-        return billRepository
-                .findByCustomer_MobileNumber(mobileNumber)
-                .stream()
-                .map(this::convertToDto)
-                .toList();
     }
 }

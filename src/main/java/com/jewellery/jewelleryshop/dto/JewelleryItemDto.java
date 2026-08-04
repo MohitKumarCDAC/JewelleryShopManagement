@@ -4,6 +4,8 @@ import com.jewellery.jewelleryshop.entity.Category;
 import com.jewellery.jewelleryshop.entity.Purity;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,6 +17,6 @@ public class JewelleryItemDto {
     private String itemName;
     private Category category;
     private Purity purity;
-    private Double weight;
+    private BigDecimal weight;
     private Integer stockQuantity;
 }

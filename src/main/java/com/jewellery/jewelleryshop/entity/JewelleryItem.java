@@ -3,6 +3,7 @@ package com.jewellery.jewelleryshop.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -30,7 +31,7 @@ public class JewelleryItem {
     @Enumerated(EnumType.STRING)
     private Purity purity;
 
-    private Double weight;
+    private BigDecimal weight;
 
     private Integer stockQuantity;
 

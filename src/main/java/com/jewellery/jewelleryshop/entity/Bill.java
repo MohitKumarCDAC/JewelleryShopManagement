@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "bills")
@@ -45,6 +46,9 @@ public class Bill {
 
     @Enumerated(EnumType.STRING)
     private PaymentMode paymentMode;
+
+    @OneToMany(mappedBy = "bill",cascade = CascadeType.ALL)
+    private List<BillItem> items;
 
     @PrePersist
     public void prePersist() {

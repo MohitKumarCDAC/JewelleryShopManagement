@@ -12,8 +12,11 @@ import java.math.BigDecimal;
 public class BillItemDto {
 
     private String itemCode;
+    private String itemName;
 
     private Integer quantity;
+
+    private BigDecimal weight;
 
     // Billing time values
     private BigDecimal metalRate;
@@ -21,4 +24,6 @@ public class BillItemDto {
     private BigDecimal makingChargePercent;
 
     private BigDecimal gstPercent;
+
+    private BigDecimal total;
 }
