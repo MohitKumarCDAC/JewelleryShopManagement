@@ -1,5 +1,6 @@
 package com.jewellery.jewelleryshop.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,6 +49,7 @@ public class Bill {
     private PaymentMode paymentMode;
 
     @OneToMany(mappedBy = "bill",cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<BillItem> items;
 
     @PrePersist

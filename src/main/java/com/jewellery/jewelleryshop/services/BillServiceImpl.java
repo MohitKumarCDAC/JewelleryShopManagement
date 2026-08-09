@@ -1,3 +1,4 @@
+
 package com.jewellery.jewelleryshop.services;
 
 import com.jewellery.jewelleryshop.dto.BillDto;
@@ -7,6 +8,7 @@ import com.jewellery.jewelleryshop.repository.BillItemRepository;
 import com.jewellery.jewelleryshop.repository.BillRepository;
 import com.jewellery.jewelleryshop.repository.CustomerRepositry;
 import com.jewellery.jewelleryshop.repository.JewelleryItemRepository;
+import com.jewellery.jewelleryshop.repository.PaymentHistoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,9 @@ public class BillServiceImpl implements BillService {
 
     @Autowired
     private JewelleryItemRepository jewelleryItemRepository;
+
+    @Autowired
+    private PaymentHistoryRepository paymentHistoryRepository;
 
 
     // ==============================
@@ -327,7 +332,33 @@ public class BillServiceImpl implements BillService {
         }
 
 
+        // ==============================
+        // SAVE FINAL BILL
+        // ==============================
+
         billRepository.save(savedBill);
+
+
+        // ==============================
+        // INITIAL PAYMENT HISTORY
+        // ==============================
+
+        if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+
+            PaymentHistory paymentHistory =
+                    PaymentHistory.builder()
+                            .bill(savedBill)
+                            .customer(customer)
+                            .amount(paidAmount)
+                            .paymentMode(
+                                    savedBill.getPaymentMode()
+                            )
+                            .build();
+
+            paymentHistoryRepository.save(
+                    paymentHistory
+            );
+        }
 
 
         return convertToDto(savedBill);
@@ -369,12 +400,15 @@ public class BillServiceImpl implements BillService {
                 .toList();
     }
 
+
     // ==============================
-// GET CUSTOMER ALL BILLS
-// ==============================
+    // GET CUSTOMER ALL BILLS
+    // ==============================
 
     @Override
-    public List<BillDto> getBillsByCustomerMobile(String mobileNumber) {
+    public List<BillDto> getBillsByCustomerMobile(
+            String mobileNumber
+    ) {
 
         return billRepository
                 .findByCustomer_MobileNumber(mobileNumber)
@@ -404,6 +438,10 @@ public class BillServiceImpl implements BillService {
                                 ));
 
 
+        // ==============================
+        // PAYMENT VALIDATION
+        // ==============================
+
         if (amount == null ||
                 amount.compareTo(BigDecimal.ZERO) <= 0) {
 
@@ -413,14 +451,13 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        BigDecimal newPaid =
-                bill.getPaidAmount()
-                        .add(amount);
+        BigDecimal currentDue =
+                bill.getDueAmount() == null
+                        ? BigDecimal.ZERO
+                        : bill.getDueAmount();
 
 
-        if (newPaid.compareTo(
-                bill.getGrandTotal()
-        ) > 0) {
+        if (amount.compareTo(currentDue) > 0) {
 
             throw new RuntimeException(
                     "Payment cannot be greater than due amount"
@@ -428,8 +465,26 @@ public class BillServiceImpl implements BillService {
         }
 
 
+        // ==============================
+        // UPDATE PAID AMOUNT
+        // ==============================
+
+        BigDecimal currentPaid =
+                bill.getPaidAmount() == null
+                        ? BigDecimal.ZERO
+                        : bill.getPaidAmount();
+
+
+        BigDecimal newPaid =
+                currentPaid.add(amount);
+
+
         bill.setPaidAmount(newPaid);
 
+
+        // ==============================
+        // UPDATE DUE
+        // ==============================
 
         BigDecimal due =
                 bill.getGrandTotal()
@@ -439,20 +494,55 @@ public class BillServiceImpl implements BillService {
         bill.setDueAmount(due);
 
 
+        // ==============================
+        // UPDATE STATUS
+        // ==============================
+
         if (due.compareTo(BigDecimal.ZERO) == 0) {
 
-            bill.setStatus(BillStatus.PAID);
+            bill.setStatus(
+                    BillStatus.PAID
+            );
 
         } else {
 
-            bill.setStatus(BillStatus.PARTIAL);
+            bill.setStatus(
+                    BillStatus.PARTIAL
+            );
         }
 
 
-        billRepository.save(bill);
+        // ==============================
+        // SAVE UPDATED BILL
+        // ==============================
+
+        Bill savedBill =
+                billRepository.save(bill);
 
 
-        return convertToDto(bill);
+        // ==============================
+        // SAVE PAYMENT HISTORY
+        // ==============================
+
+        PaymentHistory paymentHistory =
+                PaymentHistory.builder()
+                        .bill(savedBill)
+                        .customer(
+                                savedBill.getCustomer()
+                        )
+                        .amount(amount)
+                        .paymentMode(
+                                savedBill.getPaymentMode()
+                        )
+                        .build();
+
+
+        paymentHistoryRepository.save(
+                paymentHistory
+        );
+
+
+        return convertToDto(savedBill);
     }
 
 
@@ -492,9 +582,10 @@ public class BillServiceImpl implements BillService {
         );
     }
 
-// ==============================
-// DTO CONVERTER
-// ==============================
+
+    // ==============================
+    // DTO CONVERTER
+    // ==============================
 
     private BillDto convertToDto(Bill bill) {
 
@@ -502,12 +593,15 @@ public class BillServiceImpl implements BillService {
         List<BillItem> billItems =
                 billItemRepository.findByBill(bill);
 
-        List<BillItemDto> itemDtos = new ArrayList<>();
+        List<BillItemDto> itemDtos =
+                new ArrayList<>();
+
 
         for (BillItem billItem : billItems) {
 
             JewelleryItem item =
                     billItem.getJewelleryItem();
+
 
             BillItemDto itemDto =
                     BillItemDto.builder()
@@ -545,6 +639,7 @@ public class BillServiceImpl implements BillService {
                             )
 
                             .build();
+
 
             itemDtos.add(itemDto);
         }
@@ -608,3 +703,4 @@ public class BillServiceImpl implements BillService {
                 .build();
     }
 }
+
