@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 public class BillItemDto {
 
     private String itemCode;
+
     private String itemName;
 
     private Integer quantity;

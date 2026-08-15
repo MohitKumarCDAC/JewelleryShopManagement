@@ -26,6 +26,13 @@ public class BillItem {
     @JoinColumn(name = "item_id")
     private JewelleryItem jewelleryItem;
 
+    // Manual item name
+    private String itemName;
+
+
+    // Item weight
+    private BigDecimal weight;
+
     private Integer quantity;
 
     // Rate at the time of billing

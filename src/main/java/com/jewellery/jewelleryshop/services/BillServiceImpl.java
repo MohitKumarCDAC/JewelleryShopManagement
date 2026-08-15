@@ -44,18 +44,27 @@ public class BillServiceImpl implements BillService {
     @Transactional
     public BillDto createBill(BillDto billDto) {
 
-        // Customer fetch
+        // ==============================
+        // CUSTOMER FETCH
+        // ==============================
+
         Customer customer = customerRepositry
                 .findByMobileNumber(billDto.getCustomerMobile())
                 .orElseThrow(() ->
                         new RuntimeException("Customer Not Found"));
 
 
-        // Generate Bill Number automatically
+        // ==============================
+        // GENERATE BILL NUMBER
+        // ==============================
+
         String billNumber = generateBillNumber();
 
 
-        // Create Bill
+        // ==============================
+        // CREATE BILL
+        // ==============================
+
         Bill bill = Bill.builder()
                 .billNumber(billNumber)
                 .customer(customer)
@@ -88,42 +97,105 @@ public class BillServiceImpl implements BillService {
 
         for (BillItemDto itemDto : billDto.getItems()) {
 
-            JewelleryItem jewelleryItem =
-                    jewelleryItemRepository
-                            .findByItemCode(itemDto.getItemCode())
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Item Not Found: "
-                                                    + itemDto.getItemCode()
-                                    ));
+            boolean manualItem =
+                    itemDto.getItemCode() == null
+                            || itemDto.getItemCode().trim().isEmpty();
 
 
-            // Quantity validation
-            if (itemDto.getQuantity() == null ||
-                    itemDto.getQuantity() <= 0) {
+            JewelleryItem jewelleryItem = null;
 
-                throw new RuntimeException(
-                        "Quantity must be greater than zero"
-                );
+
+            // ==============================
+            // STOCK BILLING
+            // ==============================
+
+            if (!manualItem) {
+
+                jewelleryItem =
+                        jewelleryItemRepository
+                                .findByItemCode(
+                                        itemDto.getItemCode()
+                                )
+                                .orElseThrow(() ->
+                                        new RuntimeException(
+                                                "Item Not Found: "
+                                                        + itemDto.getItemCode()
+                                        ));
+
+
+                // Quantity validation
+
+                if (itemDto.getQuantity() == null
+                        || itemDto.getQuantity() <= 0) {
+
+                    throw new RuntimeException(
+                            "Quantity must be greater than zero"
+                    );
+                }
+
+
+                // Stock check
+
+                if (jewelleryItem.getStockQuantity() == null
+                        || jewelleryItem.getStockQuantity()
+                        < itemDto.getQuantity()) {
+
+                    throw new RuntimeException(
+                            "Insufficient Stock for Item: "
+                                    + itemDto.getItemCode()
+                    );
+                }
+
             }
 
 
-            // Stock check
-            if (jewelleryItem.getStockQuantity() == null ||
-                    jewelleryItem.getStockQuantity()
-                            < itemDto.getQuantity()) {
+            // ==============================
+            // MANUAL BILLING
+            // ==============================
 
-                throw new RuntimeException(
-                        "Insufficient Stock for Item: "
-                                + itemDto.getItemCode()
-                );
+            else {
+
+                // Manual item name required
+
+                if (itemDto.getItemName() == null
+                        || itemDto.getItemName().trim().isEmpty()) {
+
+                    throw new RuntimeException(
+                            "Manual item name is required"
+                    );
+                }
+
+
+                // Manual weight required
+
+                if (itemDto.getWeight() == null
+                        || itemDto.getWeight()
+                        .compareTo(BigDecimal.ZERO) <= 0) {
+
+                    throw new RuntimeException(
+                            "Manual item weight must be greater than zero"
+                    );
+                }
+
+
+                // Manual quantity default = 1
+
+                if (itemDto.getQuantity() == null
+                        || itemDto.getQuantity() <= 0) {
+
+                    itemDto.setQuantity(1);
+                }
+
             }
 
 
-            // Required billing values
-            if (itemDto.getMetalRate() == null ||
-                    itemDto.getMetalRate()
-                            .compareTo(BigDecimal.ZERO) <= 0) {
+            // ==============================
+            // REQUIRED BILLING VALUES
+            // ==============================
+
+            if (itemDto.getMetalRate() == null
+                    || itemDto.getMetalRate()
+                    .compareTo(BigDecimal.ZERO) <= 0) {
 
                 throw new RuntimeException(
                         "Metal rate must be greater than zero"
@@ -143,18 +215,46 @@ public class BillServiceImpl implements BillService {
                             : itemDto.getGstPercent();
 
 
-            // ==============================
-            // METAL VALUE
-            // ==============================
-
-            BigDecimal weight = jewelleryItem.getWeight();
-
-
             BigDecimal quantity =
                     BigDecimal.valueOf(
                             itemDto.getQuantity()
                     );
 
+
+            // ==============================
+            // WEIGHT
+            // ==============================
+
+            BigDecimal weight;
+
+
+            if (manualItem) {
+
+                // Manual billing ka weight
+
+                weight = itemDto.getWeight();
+
+            } else {
+
+                // Existing JewelleryItem ka weight
+
+                weight = jewelleryItem.getWeight();
+
+            }
+
+
+            if (weight == null
+                    || weight.compareTo(BigDecimal.ZERO) <= 0) {
+
+                throw new RuntimeException(
+                        "Weight must be greater than zero"
+                );
+            }
+
+
+            // ==============================
+            // METAL VALUE
+            // ==============================
 
             BigDecimal metalAmount =
                     weight
@@ -200,8 +300,13 @@ public class BillServiceImpl implements BillService {
             // ==============================
 
             BigDecimal itemTotal =
-                    taxableAmount.add(gstAmount);
+                    taxableAmount
+                            .add(gstAmount);
 
+
+            // ==============================
+            // BILL TOTAL
+            // ==============================
 
             totalAmount =
                     totalAmount.add(
@@ -221,17 +326,53 @@ public class BillServiceImpl implements BillService {
             BillItem billItem =
                     BillItem.builder()
                             .bill(savedBill)
+
+                            // Stock item ke case me jewelleryItem
+                            // Manual case me NULL
                             .jewelleryItem(jewelleryItem)
-                            .quantity(itemDto.getQuantity())
-                            .metalRate(itemDto.getMetalRate())
-                            .metalAmount(metalAmount)
-                            .makingChargePercent(makingPercent)
+
+                            // Manual item name
+                            .itemName(
+                                    manualItem
+                                            ? itemDto.getItemName()
+                                            : jewelleryItem.getItemName()
+                            )
+
+                            // Billing time weight
+                            .weight(weight)
+
+                            .quantity(
+                                    itemDto.getQuantity()
+                            )
+
+                            .metalRate(
+                                    itemDto.getMetalRate()
+                            )
+
+                            .metalAmount(
+                                    metalAmount
+                            )
+
+                            .makingChargePercent(
+                                    makingPercent
+                            )
+
                             .makingChargeAmount(
                                     makingChargeAmount
                             )
-                            .gstPercent(gstPercent)
-                            .gstAmount(gstAmount)
-                            .total(itemTotal)
+
+                            .gstPercent(
+                                    gstPercent
+                            )
+
+                            .gstAmount(
+                                    gstAmount
+                            )
+
+                            .total(
+                                    itemTotal
+                            )
+
                             .build();
 
 
@@ -240,15 +381,21 @@ public class BillServiceImpl implements BillService {
 
             // ==============================
             // REDUCE STOCK
+            // ONLY STOCK BILLING
             // ==============================
 
-            jewelleryItem.setStockQuantity(
-                    jewelleryItem.getStockQuantity()
-                            - itemDto.getQuantity()
-            );
+            if (!manualItem) {
+
+                jewelleryItem.setStockQuantity(
+                        jewelleryItem.getStockQuantity()
+                                - itemDto.getQuantity()
+                );
 
 
-            jewelleryItemRepository.save(jewelleryItem);
+                jewelleryItemRepository.save(
+                        jewelleryItem
+                );
+            }
         }
 
 
@@ -262,15 +409,28 @@ public class BillServiceImpl implements BillService {
                         : savedBill.getDiscount();
 
 
-        // Total before GST
-        savedBill.setTotalAmount(totalAmount);
+        // ==============================
+        // TOTAL AMOUNT
+        // ==============================
+
+        savedBill.setTotalAmount(
+                totalAmount
+        );
 
 
+        // ==============================
         // GST
-        savedBill.setGstAmount(totalGst);
+        // ==============================
+
+        savedBill.setGstAmount(
+                totalGst
+        );
 
 
-        // Grand total
+        // ==============================
+        // GRAND TOTAL
+        // ==============================
+
         BigDecimal grandTotal =
                 totalAmount
                         .add(totalGst)
@@ -278,11 +438,14 @@ public class BillServiceImpl implements BillService {
 
 
         if (grandTotal.compareTo(BigDecimal.ZERO) < 0) {
+
             grandTotal = BigDecimal.ZERO;
         }
 
 
-        savedBill.setGrandTotal(grandTotal);
+        savedBill.setGrandTotal(
+                grandTotal
+        );
 
 
         // ==============================
@@ -308,10 +471,14 @@ public class BillServiceImpl implements BillService {
         // ==============================
 
         BigDecimal dueAmount =
-                grandTotal.subtract(paidAmount);
+                grandTotal.subtract(
+                        paidAmount
+                );
 
 
-        savedBill.setDueAmount(dueAmount);
+        savedBill.setDueAmount(
+                dueAmount
+        );
 
 
         // ==============================
@@ -320,15 +487,23 @@ public class BillServiceImpl implements BillService {
 
         if (dueAmount.compareTo(BigDecimal.ZERO) == 0) {
 
-            savedBill.setStatus(BillStatus.PAID);
+            savedBill.setStatus(
+                    BillStatus.PAID
+            );
 
-        } else if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+        } else if (
+                paidAmount.compareTo(BigDecimal.ZERO) > 0
+        ) {
 
-            savedBill.setStatus(BillStatus.PARTIAL);
+            savedBill.setStatus(
+                    BillStatus.PARTIAL
+            );
 
         } else {
 
-            savedBill.setStatus(BillStatus.PARTIAL);
+            savedBill.setStatus(
+                    BillStatus.PARTIAL
+            );
         }
 
 
@@ -336,7 +511,9 @@ public class BillServiceImpl implements BillService {
         // SAVE FINAL BILL
         // ==============================
 
-        billRepository.save(savedBill);
+        billRepository.save(
+                savedBill
+        );
 
 
         // ==============================
@@ -355,15 +532,21 @@ public class BillServiceImpl implements BillService {
                             )
                             .build();
 
+
             paymentHistoryRepository.save(
                     paymentHistory
             );
         }
 
 
-        return convertToDto(savedBill);
-    }
+        // ==============================
+        // RETURN BILL
+        // ==============================
 
+        return convertToDto(
+                savedBill
+        );
+    }
 
     // ==============================
     // GET BILL
@@ -606,20 +789,35 @@ public class BillServiceImpl implements BillService {
             BillItemDto itemDto =
                     BillItemDto.builder()
 
+                            // Stock item ke liye itemCode
+                            // Manual item ke liye null
                             .itemCode(
-                                    item.getItemCode()
+                                    item != null
+                                            ? item.getItemCode()
+                                            : null
                             )
 
+                            // Manual item ka naam BillItem se
+                            // Stock item ka naam JewelleryItem se
                             .itemName(
-                                    item.getItemName()
+                                    billItem.getItemName() != null
+                                            ? billItem.getItemName()
+                                            : item != null
+                                            ? item.getItemName()
+                                            : null
                             )
 
                             .quantity(
                                     billItem.getQuantity()
                             )
 
+                            // Bill ke time save hua weight
                             .weight(
-                                    item.getWeight()
+                                    billItem.getWeight() != null
+                                            ? billItem.getWeight()
+                                            : item != null
+                                            ? item.getWeight()
+                                            : null
                             )
 
                             .metalRate(
@@ -643,7 +841,6 @@ public class BillServiceImpl implements BillService {
 
             itemDtos.add(itemDto);
         }
-
 
         // ==============================
         // BILL DTO
