@@ -68,7 +68,11 @@ public class SecurityConfig {
 
                         // Login public rahega
                         .requestMatchers(
-                                "/api/auth/login"
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/forgot-password",
+                                "/api/auth/verify-otp",
+                                "/api/auth/reset-password"
                         ).permitAll()
 
                         // Baaki API ke liye login required
