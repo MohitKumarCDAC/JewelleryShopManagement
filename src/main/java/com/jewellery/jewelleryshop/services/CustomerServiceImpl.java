@@ -81,8 +81,31 @@ public class CustomerServiceImpl implements CustomerService{
 
         customerRepositry.delete(customer);
     }
+    @Override
+    public List<CustomerDto> searchCustomersByName(String name) {
 
+        if (name == null || name.trim().isEmpty()) {
+            return List.of();
+        }
 
+        String searchName = name.trim();
+
+        List<Customer> customers =
+                customerRepositry.findByCustomerNameStartingWithIgnoreCase(searchName);
+
+        return customers.stream()
+                .map(customer -> {
+
+                    CustomerDto dto = new CustomerDto();
+
+                    dto.setCustomerName(customer.getCustomerName());
+                    dto.setMobileNumber(customer.getMobileNumber());
+                    dto.setPlace(customer.getPlace());
+
+                    return dto;
+                })
+                .toList();
+    }
     @Override
     public List<CustomerDto> getAllCustomers()
     {
@@ -140,6 +163,9 @@ public class CustomerServiceImpl implements CustomerService{
                         .billNumbers(billsNumber)
                         .build();
     }
+
+
+
 
 
     @Override

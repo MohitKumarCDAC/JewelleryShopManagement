@@ -6,6 +6,7 @@ import com.jewellery.jewelleryshop.dto.CustomerDto;
 import com.jewellery.jewelleryshop.dto.CustomerPurchaseHistoryDto;
 import com.jewellery.jewelleryshop.services.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -60,6 +61,16 @@ public class CustomerController {
             @PathVariable String mobileNumber) {
 
         return customerService.getCustomerBillingInfo(mobileNumber);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<CustomerDto>> searchCustomersByName(
+            @RequestParam String name) {
+
+        List<CustomerDto> customers =
+                customerService.searchCustomersByName(name);
+
+        return ResponseEntity.ok(customers);
     }
 
 }

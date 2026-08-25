@@ -8,24 +8,27 @@ import java.util.List;
 
 public interface CustomerService {
 
-    //save customer detail
-    CustomerDto  saveCustomer(CustomerDto customerDto);
+    // Save customer detail
+    CustomerDto saveCustomer(CustomerDto customerDto);
 
-    //getcustomer by mobile number
+    // Get customer by mobile number
     CustomerDto getCustomerByMobile(String mobileNumber);
 
+    // Search customers by name
+    List<CustomerDto> searchCustomersByName(String name);
 
-    //update customer
+    // Update customer
     CustomerDto updateCustomer(String mobileNumber, CustomerDto customerDto);
 
-    //delete customer
+    // Delete customer
     void deleteCustomer(String mobileNumber);
 
-    //getAll customer
+    // Get all customers
     List<CustomerDto> getAllCustomers();
 
+    // Get customer purchase history
     CustomerPurchaseHistoryDto getCustomerPurchaseHistory(String mobileNumber);
 
+    // Get customer billing information
     CustomerBillingInfoDto getCustomerBillingInfo(String mobileNumber);
-
 }
