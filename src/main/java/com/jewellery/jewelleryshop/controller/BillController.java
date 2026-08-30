@@ -1,6 +1,7 @@
 package com.jewellery.jewelleryshop.controller;
 
 import com.jewellery.jewelleryshop.dto.BillDto;
+import com.jewellery.jewelleryshop.dto.OutstandingBillDto;
 import com.jewellery.jewelleryshop.services.BillService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -71,4 +72,18 @@ public class BillController {
     ) {
         return billService.getBillsByCustomerMobile(mobileNumber);
     }
+
+
+
+// ==============================
+// GET OUTSTANDING BILLS
+// ==============================
+
+    @GetMapping("/outstanding")
+    public List<OutstandingBillDto> getOutstandingBills() {
+
+        return billService.getOutstandingBills();
+    }
+
+
 }

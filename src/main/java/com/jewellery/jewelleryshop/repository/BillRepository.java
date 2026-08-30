@@ -5,6 +5,7 @@ import com.jewellery.jewelleryshop.entity.Bill;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -22,4 +23,8 @@ public interface BillRepository extends JpaRepository<Bill,Long> {
 
     // Latest Bill Number
     Optional<Bill> findTopByOrderByIdDesc();
+
+    // Outstanding Bills
+    // Sirf wahi bills jinka due amount zero se greater hai
+     List<Bill> findByDueAmountGreaterThan(BigDecimal amount);
 }

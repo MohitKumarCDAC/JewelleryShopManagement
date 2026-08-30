@@ -1,6 +1,7 @@
 package com.jewellery.jewelleryshop.services;
 
 import com.jewellery.jewelleryshop.dto.BillDto;
+import com.jewellery.jewelleryshop.dto.OutstandingBillDto;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,4 +23,6 @@ public interface BillService {
 
 //customer ka sara bill
    List<BillDto> getBillsByCustomerMobile(String mobileNumber);
+//outstanding(baki) bill ke liye
+    List<OutstandingBillDto> getOutstandingBills();
 }

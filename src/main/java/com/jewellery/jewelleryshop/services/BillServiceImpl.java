@@ -3,6 +3,7 @@ package com.jewellery.jewelleryshop.services;
 
 import com.jewellery.jewelleryshop.dto.BillDto;
 import com.jewellery.jewelleryshop.dto.BillItemDto;
+import com.jewellery.jewelleryshop.dto.OutstandingBillDto;
 import com.jewellery.jewelleryshop.entity.*;
 import com.jewellery.jewelleryshop.repository.BillItemRepository;
 import com.jewellery.jewelleryshop.repository.BillRepository;
@@ -899,5 +900,136 @@ public class BillServiceImpl implements BillService {
 
                 .build();
     }
+
+
+
+// ==============================
+// GET OUTSTANDING BILLS
+// ==============================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OutstandingBillDto> getOutstandingBills() {
+
+        List<Bill> outstandingBills =
+                billRepository.findByDueAmountGreaterThan(BigDecimal.ZERO);
+
+        List<OutstandingBillDto> result = new ArrayList<>();
+
+        for (Bill bill : outstandingBills) {
+
+            Customer customer = bill.getCustomer();
+
+            List<BillItem> billItems =
+                    billItemRepository.findByBill(bill);
+
+            List<BillItemDto> itemDtos = new ArrayList<>();
+
+            for (BillItem billItem : billItems) {
+
+                JewelleryItem item =
+                        billItem.getJewelleryItem();
+
+                BillItemDto itemDto =
+                        BillItemDto.builder()
+
+                                .itemCode(
+                                        item != null
+                                                ? item.getItemCode()
+                                                : null
+                                )
+
+                                .itemName(
+                                        billItem.getItemName() != null
+                                                ? billItem.getItemName()
+                                                : item != null
+                                                ? item.getItemName()
+                                                : null
+                                )
+
+                                .quantity(
+                                        billItem.getQuantity()
+                                )
+
+                                .weight(
+                                        billItem.getWeight()
+                                )
+
+                                .metalRate(
+                                        billItem.getMetalRate()
+                                )
+
+                                .makingChargePercent(
+                                        billItem.getMakingChargePercent()
+                                )
+
+                                .gstPercent(
+                                        billItem.getGstPercent()
+                                )
+
+                                .total(
+                                        billItem.getTotal()
+                                )
+
+                                .build();
+
+                itemDtos.add(itemDto);
+            }
+
+            OutstandingBillDto dto =
+                    OutstandingBillDto.builder()
+
+                            .billNumber(
+                                    bill.getBillNumber()
+                            )
+
+                            .billDate(
+                                    bill.getBillDate()
+                            )
+
+                            .customerName(
+                                    customer != null
+                                            ? customer.getCustomerName()
+                                            : null
+                            )
+
+                            .customerMobile(
+                                    customer != null
+                                            ? customer.getMobileNumber()
+                                            : null
+                            )
+
+                            .customerPlace(
+                                    customer != null
+                                            ? customer.getPlace()
+                                            : null
+                            )
+
+                            .items(
+                                    itemDtos
+                            )
+
+                            .grandTotal(
+                                    bill.getGrandTotal()
+                            )
+
+                            .paidAmount(
+                                    bill.getPaidAmount()
+                            )
+
+                            .dueAmount(
+                                    bill.getDueAmount()
+                            )
+
+                            .build();
+
+            result.add(dto);
+        }
+
+        return result;
+    }
+
+
+
 }
 
