@@ -66,6 +66,48 @@ public class BillServiceImpl implements BillService {
         // CREATE BILL
         // ==============================
 
+        BigDecimal goldExchangeWeight =
+                billDto.getGoldExchangeWeight() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getGoldExchangeWeight();
+
+        BigDecimal goldExchangeRate =
+                billDto.getGoldExchangeRate() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getGoldExchangeRate();
+
+        BigDecimal goldExchangeAmount =
+                billDto.getGoldExchangeAmount() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getGoldExchangeAmount();
+
+        BigDecimal silverExchangeWeight =
+                billDto.getSilverExchangeWeight() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getSilverExchangeWeight();
+
+        BigDecimal silverExchangeRate =
+                billDto.getSilverExchangeRate() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getSilverExchangeRate();
+
+        BigDecimal silverExchangeAmount =
+                billDto.getSilverExchangeAmount() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getSilverExchangeAmount();
+
+        if (goldExchangeWeight.compareTo(BigDecimal.ZERO) < 0
+                || goldExchangeRate.compareTo(BigDecimal.ZERO) < 0
+                || goldExchangeAmount.compareTo(BigDecimal.ZERO) < 0
+                || silverExchangeWeight.compareTo(BigDecimal.ZERO) < 0
+                || silverExchangeRate.compareTo(BigDecimal.ZERO) < 0
+                || silverExchangeAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new RuntimeException("Exchange weight, rate and amount cannot be negative");
+        }
+
+        BigDecimal totalExchangeAmount =
+                goldExchangeAmount.add(silverExchangeAmount);
+
         Bill bill = Bill.builder()
                 .billNumber(billNumber)
                 .customer(customer)
@@ -74,6 +116,13 @@ public class BillServiceImpl implements BillService {
                                 ? BigDecimal.ZERO
                                 : billDto.getDiscount()
                 )
+                .goldExchangeWeight(goldExchangeWeight)
+                .goldExchangeRate(goldExchangeRate)
+                .goldExchangeAmount(goldExchangeAmount)
+                .silverExchangeWeight(silverExchangeWeight)
+                .silverExchangeRate(silverExchangeRate)
+                .silverExchangeAmount(silverExchangeAmount)
+                .totalExchangeAmount(totalExchangeAmount)
                 .paidAmount(
                         billDto.getPaidAmount() == null
                                 ? BigDecimal.ZERO
@@ -435,7 +484,8 @@ public class BillServiceImpl implements BillService {
         BigDecimal grandTotal =
                 totalAmount
                         .add(totalGst)
-                        .subtract(discount);
+                        .subtract(discount)
+                        .subtract(totalExchangeAmount);
 
 
         if (grandTotal.compareTo(BigDecimal.ZERO) < 0) {
@@ -896,6 +946,22 @@ public class BillServiceImpl implements BillService {
 
                 .dueAmount(
                         bill.getDueAmount()
+                )
+
+                .goldExchangeAmount(
+                        bill.getGoldExchangeAmount() == null
+                                ? BigDecimal.ZERO
+                                : bill.getGoldExchangeAmount()
+                )
+                .silverExchangeAmount(
+                        bill.getSilverExchangeAmount() == null
+                                ? BigDecimal.ZERO
+                                : bill.getSilverExchangeAmount()
+                )
+                .totalExchangeAmount(
+                        bill.getTotalExchangeAmount() == null
+                                ? BigDecimal.ZERO
+                                : bill.getTotalExchangeAmount()
                 )
 
                 .build();

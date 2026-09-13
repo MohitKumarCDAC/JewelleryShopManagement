@@ -38,5 +38,15 @@ public class BillDto {
 
     private BigDecimal dueAmount;
 
+    private BigDecimal goldExchangeWeight;
+    private BigDecimal goldExchangeRate;
+    private BigDecimal goldExchangeAmount;
+
+    private BigDecimal silverExchangeWeight;
+    private BigDecimal silverExchangeRate;
+    private BigDecimal silverExchangeAmount;
+
+    private BigDecimal totalExchangeAmount;
+
     private LocalDateTime billDate;
 }

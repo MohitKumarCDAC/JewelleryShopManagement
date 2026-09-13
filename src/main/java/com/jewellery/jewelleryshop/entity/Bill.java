@@ -42,6 +42,34 @@ public class Bill {
 
     private BigDecimal dueAmount;
 
+    @Column(name = "gold_exchange_weight", precision = 19, scale = 3)
+    @Builder.Default
+    private BigDecimal goldExchangeWeight = BigDecimal.ZERO;
+
+    @Column(name = "gold_exchange_rate", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal goldExchangeRate = BigDecimal.ZERO;
+
+    @Column(name = "gold_exchange_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal goldExchangeAmount = BigDecimal.ZERO;
+
+    @Column(name = "silver_exchange_weight", precision = 19, scale = 3)
+    @Builder.Default
+    private BigDecimal silverExchangeWeight = BigDecimal.ZERO;
+
+    @Column(name = "silver_exchange_rate", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal silverExchangeRate = BigDecimal.ZERO;
+
+    @Column(name = "silver_exchange_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal silverExchangeAmount = BigDecimal.ZERO;
+
+    @Column(name = "total_exchange_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal totalExchangeAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     private BillStatus status;
 
