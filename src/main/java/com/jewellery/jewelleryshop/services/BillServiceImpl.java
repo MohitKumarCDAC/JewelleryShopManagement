@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.RoundingMode;
 
 @Service
 public class BillServiceImpl implements BillService {
@@ -502,34 +503,42 @@ public class BillServiceImpl implements BillService {
         // ==============================
         // PAID AMOUNT
         // ==============================
-
         BigDecimal paidAmount =
                 savedBill.getPaidAmount() == null
                         ? BigDecimal.ZERO
                         : savedBill.getPaidAmount();
 
+// Nearest rupee par round-off
+        BigDecimal roundedGrandTotal =
+                grandTotal.setScale(0, RoundingMode.HALF_UP);
 
-        if (paidAmount.compareTo(grandTotal) > 0) {
+        BigDecimal roundedPaidAmount =
+                paidAmount.setScale(0, RoundingMode.HALF_UP);
+
+// Rounded amount ke basis par validation
+        if (roundedPaidAmount.compareTo(roundedGrandTotal) > 0) {
 
             throw new RuntimeException(
                     "Paid amount cannot be greater than Grand Total"
             );
         }
 
+// Rounded values save karo
+        savedBill.setGrandTotal(roundedGrandTotal);
+        savedBill.setPaidAmount(roundedPaidAmount);
 
-        // ==============================
-        // DUE
-        // ==============================
-
+// Due amount bhi rounded total se calculate karo
         BigDecimal dueAmount =
-                grandTotal.subtract(
-                        paidAmount
-                );
+                roundedGrandTotal.subtract(roundedPaidAmount);
+
+        if (dueAmount.compareTo(BigDecimal.ZERO) < 0) {
+            dueAmount = BigDecimal.ZERO;
+        }
+
+        savedBill.setDueAmount(dueAmount);
 
 
-        savedBill.setDueAmount(
-                dueAmount
-        );
+
 
 
         // ==============================
@@ -946,6 +955,30 @@ public class BillServiceImpl implements BillService {
 
                 .dueAmount(
                         bill.getDueAmount()
+                )
+
+                .goldExchangeWeight(
+                        bill.getGoldExchangeWeight() == null
+                                ? BigDecimal.ZERO
+                                : bill.getGoldExchangeWeight()
+                )
+
+                .goldExchangeRate(
+                        bill.getGoldExchangeRate() == null
+                                ? BigDecimal.ZERO
+                                : bill.getGoldExchangeRate()
+                )
+
+                .silverExchangeWeight(
+                        bill.getSilverExchangeWeight() == null
+                                ? BigDecimal.ZERO
+                                : bill.getSilverExchangeWeight()
+                )
+
+                .silverExchangeRate(
+                        bill.getSilverExchangeRate() == null
+                                ? BigDecimal.ZERO
+                                : bill.getSilverExchangeRate()
                 )
 
                 .goldExchangeAmount(
