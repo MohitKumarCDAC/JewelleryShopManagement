@@ -1,4 +1,3 @@
-
 package com.jewellery.jewelleryshop.services;
 
 import com.jewellery.jewelleryshop.dto.BillDto;
@@ -15,9 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.math.RoundingMode;
 
 @Service
 public class BillServiceImpl implements BillService {
@@ -38,17 +37,17 @@ public class BillServiceImpl implements BillService {
     private PaymentHistoryRepository paymentHistoryRepository;
 
 
-    // ==============================
+    // =======================================================
     // CREATE BILL
-    // ==============================
+    // =======================================================
 
     @Override
     @Transactional
     public BillDto createBill(BillDto billDto) {
 
-        // ==============================
+        // ===================================================
         // CUSTOMER FETCH
-        // ==============================
+        // ===================================================
 
         Customer customer = customerRepositry
                 .findByMobileNumber(billDto.getCustomerMobile())
@@ -56,16 +55,16 @@ public class BillServiceImpl implements BillService {
                         new RuntimeException("Customer Not Found"));
 
 
-        // ==============================
+        // ===================================================
         // GENERATE BILL NUMBER
-        // ==============================
+        // ===================================================
 
         String billNumber = generateBillNumber();
 
 
-        // ==============================
-        // CREATE BILL
-        // ==============================
+        // ===================================================
+        // EXCHANGE VALUES
+        // ===================================================
 
         BigDecimal goldExchangeWeight =
                 billDto.getGoldExchangeWeight() == null
@@ -97,44 +96,73 @@ public class BillServiceImpl implements BillService {
                         ? BigDecimal.ZERO
                         : billDto.getSilverExchangeAmount();
 
+
+        // ===================================================
+        // EXCHANGE VALIDATION
+        // ===================================================
+
         if (goldExchangeWeight.compareTo(BigDecimal.ZERO) < 0
                 || goldExchangeRate.compareTo(BigDecimal.ZERO) < 0
                 || goldExchangeAmount.compareTo(BigDecimal.ZERO) < 0
                 || silverExchangeWeight.compareTo(BigDecimal.ZERO) < 0
                 || silverExchangeRate.compareTo(BigDecimal.ZERO) < 0
                 || silverExchangeAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("Exchange weight, rate and amount cannot be negative");
+
+            throw new RuntimeException(
+                    "Exchange weight, rate and amount cannot be negative"
+            );
         }
+
+
+        // ===================================================
+        // TOTAL EXCHANGE
+        // ===================================================
 
         BigDecimal totalExchangeAmount =
                 goldExchangeAmount.add(silverExchangeAmount);
 
+
+        // ===================================================
+        // CREATE BILL
+        // ===================================================
+
         Bill bill = Bill.builder()
                 .billNumber(billNumber)
                 .customer(customer)
+
                 .discount(
                         billDto.getDiscount() == null
                                 ? BigDecimal.ZERO
                                 : billDto.getDiscount()
                 )
+
                 .goldExchangeWeight(goldExchangeWeight)
                 .goldExchangeRate(goldExchangeRate)
                 .goldExchangeAmount(goldExchangeAmount)
+
                 .silverExchangeWeight(silverExchangeWeight)
                 .silverExchangeRate(silverExchangeRate)
                 .silverExchangeAmount(silverExchangeAmount)
+
                 .totalExchangeAmount(totalExchangeAmount)
+
                 .paidAmount(
                         billDto.getPaidAmount() == null
                                 ? BigDecimal.ZERO
                                 : billDto.getPaidAmount()
                 )
+
                 .paymentMode(billDto.getPaymentMode())
+
                 .status(BillStatus.PARTIAL)
+
                 .build();
 
 
-        // Save Bill first
+        // ===================================================
+        // SAVE BILL FIRST
+        // ===================================================
+
         Bill savedBill = billRepository.save(bill);
 
 
@@ -142,9 +170,9 @@ public class BillServiceImpl implements BillService {
         BigDecimal totalGst = BigDecimal.ZERO;
 
 
-        // ==============================
+        // ===================================================
         // ITEMS
-        // ==============================
+        // ===================================================
 
         for (BillItemDto itemDto : billDto.getItems()) {
 
@@ -156,9 +184,9 @@ public class BillServiceImpl implements BillService {
             JewelleryItem jewelleryItem = null;
 
 
-            // ==============================
+            // =================================================
             // STOCK BILLING
-            // ==============================
+            // =================================================
 
             if (!manualItem) {
 
@@ -185,7 +213,7 @@ public class BillServiceImpl implements BillService {
                 }
 
 
-                // Stock check
+                // Stock validation
 
                 if (jewelleryItem.getStockQuantity() == null
                         || jewelleryItem.getStockQuantity()
@@ -196,17 +224,16 @@ public class BillServiceImpl implements BillService {
                                     + itemDto.getItemCode()
                     );
                 }
-
             }
 
 
-            // ==============================
+            // =================================================
             // MANUAL BILLING
-            // ==============================
+            // =================================================
 
             else {
 
-                // Manual item name required
+                // Manual item name validation
 
                 if (itemDto.getItemName() == null
                         || itemDto.getItemName().trim().isEmpty()) {
@@ -217,7 +244,7 @@ public class BillServiceImpl implements BillService {
                 }
 
 
-                // Manual weight required
+                // Manual weight validation
 
                 if (itemDto.getWeight() == null
                         || itemDto.getWeight()
@@ -236,13 +263,12 @@ public class BillServiceImpl implements BillService {
 
                     itemDto.setQuantity(1);
                 }
-
             }
 
 
-            // ==============================
-            // REQUIRED BILLING VALUES
-            // ==============================
+            // =================================================
+            // METAL RATE VALIDATION
+            // =================================================
 
             if (itemDto.getMetalRate() == null
                     || itemDto.getMetalRate()
@@ -254,11 +280,9 @@ public class BillServiceImpl implements BillService {
             }
 
 
-            BigDecimal makingPercent =
-                    itemDto.getMakingChargePercent() == null
-                            ? BigDecimal.ZERO
-                            : itemDto.getMakingChargePercent();
-
+            // =================================================
+            // GST
+            // =================================================
 
             BigDecimal gstPercent =
                     itemDto.getGstPercent() == null
@@ -266,31 +290,31 @@ public class BillServiceImpl implements BillService {
                             : itemDto.getGstPercent();
 
 
+            // =================================================
+            // QUANTITY
+            // =================================================
+
             BigDecimal quantity =
                     BigDecimal.valueOf(
                             itemDto.getQuantity()
                     );
 
 
-            // ==============================
+            // =================================================
             // WEIGHT
-            // ==============================
+            // =================================================
 
             BigDecimal weight;
 
-
             if (manualItem) {
 
-                // Manual billing ka weight
-
+                // Manual billing weight
                 weight = itemDto.getWeight();
 
             } else {
 
-                // Existing JewelleryItem ka weight
-
+                // Stock item weight
                 weight = jewelleryItem.getWeight();
-
             }
 
 
@@ -303,9 +327,9 @@ public class BillServiceImpl implements BillService {
             }
 
 
-            // ==============================
-            // METAL VALUE
-            // ==============================
+            // =================================================
+            // METAL AMOUNT
+            // =================================================
 
             BigDecimal metalAmount =
                     weight
@@ -313,51 +337,119 @@ public class BillServiceImpl implements BillService {
                             .multiply(itemDto.getMetalRate());
 
 
-            // ==============================
+            // =================================================
             // MAKING CHARGE
-            // ==============================
+            //
+            // Weight < 1 gram
+            //     -> Making Charge = RUPEES
+            //
+            // Weight >= 1 gram
+            //     -> Making Charge = PERCENTAGE
+            // =================================================
 
-            BigDecimal makingChargeAmount =
-                    metalAmount
-                            .multiply(makingPercent)
-                            .divide(
-                                    BigDecimal.valueOf(100)
-                            );
+            BigDecimal makingValue =
+                    itemDto.getMakingChargeValue() == null
+                            ? BigDecimal.ZERO
+                            : itemDto.getMakingChargeValue();
 
 
-            // ==============================
+            String makingType =
+                    itemDto.getMakingChargeType();
+
+
+            // Safety fallback:
+            // Agar frontend se type nahi aayi,
+            // weight ke according automatically decide hoga.
+
+            if (makingType == null
+                    || makingType.trim().isEmpty()) {
+
+                makingType =
+                        weight.compareTo(BigDecimal.ONE) < 0
+                                ? "RUPEES"
+                                : "PERCENT";
+            }
+
+
+            // Normalize value
+
+            makingType =
+                    makingType.trim().toUpperCase();
+
+
+            BigDecimal makingChargeAmount;
+
+
+            if ("RUPEES".equals(makingType)) {
+
+                // =========================================
+                // BELOW 1 GRAM
+                // DIRECT RUPEE AMOUNT
+                // =========================================
+
+                makingChargeAmount =
+                        makingValue;
+
+            } else if ("PERCENT".equals(makingType)) {
+
+                // =========================================
+                // 1 GRAM OR ABOVE
+                // PERCENTAGE OF METAL AMOUNT
+                // =========================================
+
+                makingChargeAmount =
+                        metalAmount
+                                .multiply(makingValue)
+                                .divide(
+                                        BigDecimal.valueOf(100),
+                                        2,
+                                        RoundingMode.HALF_UP
+                                );
+
+            } else {
+
+                throw new RuntimeException(
+                        "Invalid making charge type: "
+                                + makingType
+                );
+            }
+
+
+            // =================================================
             // TAXABLE AMOUNT
-            // ==============================
+            // =================================================
 
             BigDecimal taxableAmount =
                     metalAmount
                             .add(makingChargeAmount);
 
 
-            // ==============================
+            // =================================================
             // GST
-            // ==============================
+            // =================================================
 
             BigDecimal gstAmount =
                     taxableAmount
                             .multiply(gstPercent)
                             .divide(
-                                    BigDecimal.valueOf(100)
+                                    BigDecimal.valueOf(100),
+                                    2,
+                                    RoundingMode.HALF_UP
                             );
 
 
-            // ==============================
+            // =================================================
             // ITEM TOTAL
-            // ==============================
+            // =================================================
 
             BigDecimal itemTotal =
                     taxableAmount
                             .add(gstAmount);
 
 
-            // ==============================
+            // =================================================
             // BILL TOTAL
-            // ==============================
+            // =================================================
 
             totalAmount =
                     totalAmount.add(
@@ -370,16 +462,16 @@ public class BillServiceImpl implements BillService {
                     totalGst.add(gstAmount);
 
 
-            // ==============================
+            // =================================================
             // SAVE BILL ITEM
-            // ==============================
+            // =================================================
 
             BillItem billItem =
                     BillItem.builder()
                             .bill(savedBill)
 
-                            // Stock item ke case me jewelleryItem
-                            // Manual case me NULL
+                            // Stock item -> JewelleryItem
+                            // Manual item -> NULL
                             .jewelleryItem(jewelleryItem)
 
                             // Manual item name
@@ -404,8 +496,20 @@ public class BillServiceImpl implements BillService {
                                     metalAmount
                             )
 
+                            // Keep old field for compatibility
                             .makingChargePercent(
-                                    makingPercent
+                                    "PERCENT".equals(makingType)
+                                            ? makingValue
+                                            : BigDecimal.ZERO
+                            )
+
+                            // New fields
+                            .makingChargeType(
+                                    makingType
+                            )
+
+                            .makingChargeValue(
+                                    makingValue
                             )
 
                             .makingChargeAmount(
@@ -430,10 +534,10 @@ public class BillServiceImpl implements BillService {
             billItemRepository.save(billItem);
 
 
-            // ==============================
+            // =================================================
             // REDUCE STOCK
             // ONLY STOCK BILLING
-            // ==============================
+            // =================================================
 
             if (!manualItem) {
 
@@ -442,7 +546,6 @@ public class BillServiceImpl implements BillService {
                                 - itemDto.getQuantity()
                 );
 
-
                 jewelleryItemRepository.save(
                         jewelleryItem
                 );
@@ -450,9 +553,9 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        // ==============================
+        // ===================================================
         // DISCOUNT
-        // ==============================
+        // ===================================================
 
         BigDecimal discount =
                 savedBill.getDiscount() == null
@@ -460,27 +563,27 @@ public class BillServiceImpl implements BillService {
                         : savedBill.getDiscount();
 
 
-        // ==============================
+        // ===================================================
         // TOTAL AMOUNT
-        // ==============================
+        // ===================================================
 
         savedBill.setTotalAmount(
                 totalAmount
         );
 
 
-        // ==============================
+        // ===================================================
         // GST
-        // ==============================
+        // ===================================================
 
         savedBill.setGstAmount(
                 totalGst
         );
 
 
-        // ==============================
+        // ===================================================
         // GRAND TOTAL
-        // ==============================
+        // ===================================================
 
         BigDecimal grandTotal =
                 totalAmount
@@ -500,59 +603,93 @@ public class BillServiceImpl implements BillService {
         );
 
 
-        // ==============================
+        // ===================================================
         // PAID AMOUNT
-        // ==============================
+        // ===================================================
+
         BigDecimal paidAmount =
                 savedBill.getPaidAmount() == null
                         ? BigDecimal.ZERO
                         : savedBill.getPaidAmount();
 
-// Nearest rupee par round-off
+
+        // Nearest rupee round-off
+
         BigDecimal roundedGrandTotal =
-                grandTotal.setScale(0, RoundingMode.HALF_UP);
+                grandTotal.setScale(
+                        0,
+                        RoundingMode.HALF_UP
+                );
+
 
         BigDecimal roundedPaidAmount =
-                paidAmount.setScale(0, RoundingMode.HALF_UP);
+                paidAmount.setScale(
+                        0,
+                        RoundingMode.HALF_UP
+                );
 
-// Rounded amount ke basis par validation
-        if (roundedPaidAmount.compareTo(roundedGrandTotal) > 0) {
+
+        // ===================================================
+        // PAID VALIDATION
+        // ===================================================
+
+        if (roundedPaidAmount.compareTo(
+                roundedGrandTotal) > 0) {
 
             throw new RuntimeException(
                     "Paid amount cannot be greater than Grand Total"
             );
         }
 
-// Rounded values save karo
-        savedBill.setGrandTotal(roundedGrandTotal);
-        savedBill.setPaidAmount(roundedPaidAmount);
 
-// Due amount bhi rounded total se calculate karo
+        // ===================================================
+        // SAVE ROUNDED VALUES
+        // ===================================================
+
+        savedBill.setGrandTotal(
+                roundedGrandTotal
+        );
+
+        savedBill.setPaidAmount(
+                roundedPaidAmount
+        );
+
+
+        // ===================================================
+        // DUE AMOUNT
+        // ===================================================
+
         BigDecimal dueAmount =
-                roundedGrandTotal.subtract(roundedPaidAmount);
+                roundedGrandTotal
+                        .subtract(roundedPaidAmount);
 
-        if (dueAmount.compareTo(BigDecimal.ZERO) < 0) {
+
+        if (dueAmount.compareTo(
+                BigDecimal.ZERO) < 0) {
+
             dueAmount = BigDecimal.ZERO;
         }
 
-        savedBill.setDueAmount(dueAmount);
+
+        savedBill.setDueAmount(
+                dueAmount
+        );
 
 
-
-
-
-        // ==============================
+        // ===================================================
         // STATUS
-        // ==============================
+        // ===================================================
 
-        if (dueAmount.compareTo(BigDecimal.ZERO) == 0) {
+        if (dueAmount.compareTo(
+                BigDecimal.ZERO) == 0) {
 
             savedBill.setStatus(
                     BillStatus.PAID
             );
 
         } else if (
-                paidAmount.compareTo(BigDecimal.ZERO) > 0
+                paidAmount.compareTo(
+                        BigDecimal.ZERO) > 0
         ) {
 
             savedBill.setStatus(
@@ -567,20 +704,21 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        // ==============================
+        // ===================================================
         // SAVE FINAL BILL
-        // ==============================
+        // ===================================================
 
         billRepository.save(
                 savedBill
         );
 
 
-        // ==============================
+        // ===================================================
         // INITIAL PAYMENT HISTORY
-        // ==============================
+        // ===================================================
 
-        if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+        if (paidAmount.compareTo(
+                BigDecimal.ZERO) > 0) {
 
             PaymentHistory paymentHistory =
                     PaymentHistory.builder()
@@ -599,18 +737,19 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        // ==============================
+        // ===================================================
         // RETURN BILL
-        // ==============================
+        // ===================================================
 
         return convertToDto(
                 savedBill
         );
     }
 
-    // ==============================
-    // GET BILL
-    // ==============================
+
+    // =======================================================
+    // GET BILL BY BILL NUMBER
+    // =======================================================
 
     @Override
     public BillDto getBillByBillNumber(
@@ -630,9 +769,9 @@ public class BillServiceImpl implements BillService {
     }
 
 
-    // ==============================
+    // =======================================================
     // GET ALL BILLS
-    // ==============================
+    // =======================================================
 
     @Override
     public List<BillDto> getAllBills() {
@@ -644,9 +783,9 @@ public class BillServiceImpl implements BillService {
     }
 
 
-    // ==============================
+    // =======================================================
     // GET CUSTOMER ALL BILLS
-    // ==============================
+    // =======================================================
 
     @Override
     public List<BillDto> getBillsByCustomerMobile(
@@ -661,9 +800,9 @@ public class BillServiceImpl implements BillService {
     }
 
 
-    // ==============================
+    // =======================================================
     // PAY DUE
-    // ==============================
+    // =======================================================
 
     @Override
     @Transactional
@@ -681,12 +820,13 @@ public class BillServiceImpl implements BillService {
                                 ));
 
 
-        // ==============================
+        // ===================================================
         // PAYMENT VALIDATION
-        // ==============================
+        // ===================================================
 
-        if (amount == null ||
-                amount.compareTo(BigDecimal.ZERO) <= 0) {
+        if (amount == null
+                || amount.compareTo(
+                BigDecimal.ZERO) <= 0) {
 
             throw new RuntimeException(
                     "Payment amount must be greater than zero"
@@ -708,9 +848,9 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        // ==============================
+        // ===================================================
         // UPDATE PAID AMOUNT
-        // ==============================
+        // ===================================================
 
         BigDecimal currentPaid =
                 bill.getPaidAmount() == null
@@ -722,26 +862,31 @@ public class BillServiceImpl implements BillService {
                 currentPaid.add(amount);
 
 
-        bill.setPaidAmount(newPaid);
+        bill.setPaidAmount(
+                newPaid
+        );
 
 
-        // ==============================
+        // ===================================================
         // UPDATE DUE
-        // ==============================
+        // ===================================================
 
         BigDecimal due =
                 bill.getGrandTotal()
                         .subtract(newPaid);
 
 
-        bill.setDueAmount(due);
+        bill.setDueAmount(
+                due
+        );
 
 
-        // ==============================
+        // ===================================================
         // UPDATE STATUS
-        // ==============================
+        // ===================================================
 
-        if (due.compareTo(BigDecimal.ZERO) == 0) {
+        if (due.compareTo(
+                BigDecimal.ZERO) == 0) {
 
             bill.setStatus(
                     BillStatus.PAID
@@ -755,17 +900,17 @@ public class BillServiceImpl implements BillService {
         }
 
 
-        // ==============================
+        // ===================================================
         // SAVE UPDATED BILL
-        // ==============================
+        // ===================================================
 
         Bill savedBill =
                 billRepository.save(bill);
 
 
-        // ==============================
+        // ===================================================
         // SAVE PAYMENT HISTORY
-        // ==============================
+        // ===================================================
 
         PaymentHistory paymentHistory =
                 PaymentHistory.builder()
@@ -785,17 +930,21 @@ public class BillServiceImpl implements BillService {
         );
 
 
-        return convertToDto(savedBill);
+        return convertToDto(
+                savedBill
+        );
     }
 
 
-    // ==============================
+    // =======================================================
     // DELETE BILL
-    // ==============================
+    // =======================================================
 
     @Override
     @Transactional
-    public void deleteBill(String billNumber) {
+    public void deleteBill(
+            String billNumber
+    ) {
 
         Bill bill =
                 billRepository
@@ -810,14 +959,15 @@ public class BillServiceImpl implements BillService {
     }
 
 
-    // ==============================
+    // =======================================================
     // GENERATE BILL NUMBER
-    // ==============================
+    // =======================================================
 
     private String generateBillNumber() {
 
         long count =
                 billRepository.count() + 1;
+
 
         return String.format(
                 "BILL%05d",
@@ -826,15 +976,18 @@ public class BillServiceImpl implements BillService {
     }
 
 
-    // ==============================
+    // =======================================================
     // DTO CONVERTER
-    // ==============================
+    // =======================================================
 
-    private BillDto convertToDto(Bill bill) {
+    private BillDto convertToDto(
+            Bill bill
+    ) {
 
-        // Bill ke saare items database se fetch karna
+        // Bill ke saare items database se fetch
         List<BillItem> billItems =
                 billItemRepository.findByBill(bill);
+
 
         List<BillItemDto> itemDtos =
                 new ArrayList<>();
@@ -857,8 +1010,7 @@ public class BillServiceImpl implements BillService {
                                             : null
                             )
 
-                            // Manual item ka naam BillItem se
-                            // Stock item ka naam JewelleryItem se
+                            // Item name
                             .itemName(
                                     billItem.getItemName() != null
                                             ? billItem.getItemName()
@@ -867,11 +1019,12 @@ public class BillServiceImpl implements BillService {
                                             : null
                             )
 
+                            // Quantity
                             .quantity(
                                     billItem.getQuantity()
                             )
 
-                            // Bill ke time save hua weight
+                            // Billing time weight
                             .weight(
                                     billItem.getWeight() != null
                                             ? billItem.getWeight()
@@ -880,18 +1033,31 @@ public class BillServiceImpl implements BillService {
                                             : null
                             )
 
+                            // Metal rate
                             .metalRate(
                                     billItem.getMetalRate()
                             )
 
+                            // Old field
                             .makingChargePercent(
                                     billItem.getMakingChargePercent()
                             )
 
+                            // New making fields
+                            .makingChargeType(
+                                    billItem.getMakingChargeType()
+                            )
+
+                            .makingChargeValue(
+                                    billItem.getMakingChargeValue()
+                            )
+
+                            // GST
                             .gstPercent(
                                     billItem.getGstPercent()
                             )
 
+                            // Total
                             .total(
                                     billItem.getTotal()
                             )
@@ -902,9 +1068,10 @@ public class BillServiceImpl implements BillService {
             itemDtos.add(itemDto);
         }
 
-        // ==============================
+
+        // ===================================================
         // BILL DTO
-        // ==============================
+        // ===================================================
 
         return BillDto.builder()
 
@@ -986,11 +1153,13 @@ public class BillServiceImpl implements BillService {
                                 ? BigDecimal.ZERO
                                 : bill.getGoldExchangeAmount()
                 )
+
                 .silverExchangeAmount(
                         bill.getSilverExchangeAmount() == null
                                 ? BigDecimal.ZERO
                                 : bill.getSilverExchangeAmount()
                 )
+
                 .totalExchangeAmount(
                         bill.getTotalExchangeAmount() == null
                                 ? BigDecimal.ZERO
@@ -1001,33 +1170,43 @@ public class BillServiceImpl implements BillService {
     }
 
 
-
-// ==============================
-// GET OUTSTANDING BILLS
-// ==============================
+    // =======================================================
+    // GET OUTSTANDING BILLS
+    // =======================================================
 
     @Override
     @Transactional(readOnly = true)
     public List<OutstandingBillDto> getOutstandingBills() {
 
         List<Bill> outstandingBills =
-                billRepository.findByDueAmountGreaterThan(BigDecimal.ZERO);
+                billRepository.findByDueAmountGreaterThan(
+                        BigDecimal.ZERO
+                );
 
-        List<OutstandingBillDto> result = new ArrayList<>();
+
+        List<OutstandingBillDto> result =
+                new ArrayList<>();
+
 
         for (Bill bill : outstandingBills) {
 
-            Customer customer = bill.getCustomer();
+            Customer customer =
+                    bill.getCustomer();
+
 
             List<BillItem> billItems =
                     billItemRepository.findByBill(bill);
 
-            List<BillItemDto> itemDtos = new ArrayList<>();
+
+            List<BillItemDto> itemDtos =
+                    new ArrayList<>();
+
 
             for (BillItem billItem : billItems) {
 
                 JewelleryItem item =
                         billItem.getJewelleryItem();
+
 
                 BillItemDto itemDto =
                         BillItemDto.builder()
@@ -1062,6 +1241,14 @@ public class BillServiceImpl implements BillService {
                                         billItem.getMakingChargePercent()
                                 )
 
+                                .makingChargeType(
+                                        billItem.getMakingChargeType()
+                                )
+
+                                .makingChargeValue(
+                                        billItem.getMakingChargeValue()
+                                )
+
                                 .gstPercent(
                                         billItem.getGstPercent()
                                 )
@@ -1072,8 +1259,10 @@ public class BillServiceImpl implements BillService {
 
                                 .build();
 
+
                 itemDtos.add(itemDto);
             }
+
 
             OutstandingBillDto dto =
                     OutstandingBillDto.builder()
@@ -1122,13 +1311,11 @@ public class BillServiceImpl implements BillService {
 
                             .build();
 
+
             result.add(dto);
         }
 
+
         return result;
     }
-
-
-
 }
-

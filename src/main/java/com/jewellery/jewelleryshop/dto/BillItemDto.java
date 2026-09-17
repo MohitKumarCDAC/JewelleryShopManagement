@@ -22,7 +22,13 @@ public class BillItemDto {
     // Billing time values
     private BigDecimal metalRate;
 
+    // Old field - backward compatibility ke liye rakha gaya hai
     private BigDecimal makingChargePercent;
+
+    // New making charge fields
+    private String makingChargeType;
+
+    private BigDecimal makingChargeValue;
 
     private BigDecimal gstPercent;
 

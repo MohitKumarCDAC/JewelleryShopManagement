@@ -41,10 +41,16 @@ public class BillItem {
     // Calculated gold/metal value
     private BigDecimal metalAmount;
 
-    // Making charge percentage
+    // Old making charge field
     private BigDecimal makingChargePercent;
 
-    // Making charge amount
+    // Making charge type: RUPEES or PERCENT
+    private String makingChargeType;
+
+    // User-entered making charge value
+    private BigDecimal makingChargeValue;
+
+    // Final calculated making charge amount
     private BigDecimal makingChargeAmount;
 
     // GST percentage
