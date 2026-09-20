@@ -747,6 +747,282 @@ public class BillServiceImpl implements BillService {
     }
 
 
+
+    // =======================================================
+    // UPDATE BILL
+    // =======================================================
+
+    @Override
+    @Transactional
+    public BillDto updateBill(
+            String billNumber,
+            BillDto billDto
+    ) {
+
+        /*
+         * IMPORTANT:
+         * Existing bill number and existing Bill ID are preserved.
+         *
+         * We first restore the stock used by the old bill so that
+         * the new bill data can be validated against the correct
+         * available stock.
+         *
+         * createBill() is then reused for the existing, already-tested
+         * billing calculation logic. Everything is inside the same
+         * transaction, so if anything fails the complete update rolls
+         * back.
+         */
+
+        Bill existingBill =
+                billRepository
+                        .findByBillNumber(billNumber)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Bill Not Found"
+                                ));
+
+        // ===================================================
+        // 1. RESTORE OLD STOCK
+        // ===================================================
+
+        List<BillItem> oldBillItems =
+                billItemRepository.findByBill(existingBill);
+
+        for (BillItem oldItem : oldBillItems) {
+
+            if (oldItem.getJewelleryItem() != null) {
+
+                Integer oldQuantity = oldItem.getQuantity();
+
+                if (oldQuantity != null && oldQuantity > 0) {
+
+                    JewelleryItem jewelleryItem =
+                            oldItem.getJewelleryItem();
+
+                    Integer currentStock =
+                            jewelleryItem.getStockQuantity();
+
+                    int restoredStock =
+                            (currentStock == null ? 0 : currentStock)
+                                    + oldQuantity;
+
+                    jewelleryItem.setStockQuantity(restoredStock);
+
+                    jewelleryItemRepository.save(jewelleryItem);
+                }
+            }
+        }
+
+        // ===================================================
+        // 2. CREATE UPDATED BILL TEMPORARILY
+        // ===================================================
+        //
+        // createBill() contains the complete working calculation
+        // logic for:
+        // - stock validation
+        // - weight
+        // - metal amount
+        // - making charge
+        // - GST
+        // - discount
+        // - exchange
+        // - grand total
+        // - paid / due
+        // - status
+        //
+        // Therefore we reuse it instead of duplicating that logic.
+        //
+
+        BillDto updatedDto = createBill(billDto);
+
+        Bill temporaryBill =
+                billRepository
+                        .findByBillNumber(updatedDto.getBillNumber())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Temporary updated bill could not be found"
+                                ));
+
+        // ===================================================
+        // 3. DELETE OLD BILL ITEMS
+        // ===================================================
+
+        if (!oldBillItems.isEmpty()) {
+            billItemRepository.deleteAll(oldBillItems);
+            billItemRepository.flush();
+        }
+
+        // ===================================================
+        // 4. DELETE OLD PAYMENT HISTORY
+        // ===================================================
+
+        List<PaymentHistory> oldPaymentHistories =
+                paymentHistoryRepository
+                        .findByBill_BillNumberOrderByPaymentDateDesc(
+                                billNumber
+                        );
+
+        if (!oldPaymentHistories.isEmpty()) {
+            paymentHistoryRepository.deleteAll(
+                    oldPaymentHistories
+            );
+            paymentHistoryRepository.flush();
+        }
+
+        // ===================================================
+        // 5. COPY UPDATED BILL DATA TO ORIGINAL BILL
+        // ===================================================
+        //
+        // Existing ID and BILL NUMBER are intentionally preserved.
+        //
+
+        existingBill.setCustomer(
+                temporaryBill.getCustomer()
+        );
+
+        existingBill.setTotalAmount(
+                temporaryBill.getTotalAmount()
+        );
+
+        existingBill.setDiscount(
+                temporaryBill.getDiscount()
+        );
+
+        existingBill.setGstAmount(
+                temporaryBill.getGstAmount()
+        );
+
+        existingBill.setGrandTotal(
+                temporaryBill.getGrandTotal()
+        );
+
+        existingBill.setPaidAmount(
+                temporaryBill.getPaidAmount()
+        );
+
+        existingBill.setDueAmount(
+                temporaryBill.getDueAmount()
+        );
+
+        existingBill.setGoldExchangeWeight(
+                temporaryBill.getGoldExchangeWeight()
+        );
+
+        existingBill.setGoldExchangeRate(
+                temporaryBill.getGoldExchangeRate()
+        );
+
+        existingBill.setGoldExchangeAmount(
+                temporaryBill.getGoldExchangeAmount()
+        );
+
+        existingBill.setSilverExchangeWeight(
+                temporaryBill.getSilverExchangeWeight()
+        );
+
+        existingBill.setSilverExchangeRate(
+                temporaryBill.getSilverExchangeRate()
+        );
+
+        existingBill.setSilverExchangeAmount(
+                temporaryBill.getSilverExchangeAmount()
+        );
+
+        existingBill.setTotalExchangeAmount(
+                temporaryBill.getTotalExchangeAmount()
+        );
+
+        existingBill.setStatus(
+                temporaryBill.getStatus()
+        );
+
+        existingBill.setPaymentMode(
+                temporaryBill.getPaymentMode()
+        );
+
+        // Keep the original bill date.
+        // Bill number also remains unchanged.
+
+        Bill savedExistingBill =
+                billRepository.save(existingBill);
+
+        // ===================================================
+        // 6. MOVE NEW BILL ITEMS TO ORIGINAL BILL
+        // ===================================================
+
+        List<BillItem> newBillItems =
+                billItemRepository.findByBill(temporaryBill);
+
+        for (BillItem newItem : newBillItems) {
+
+            newItem.setBill(savedExistingBill);
+
+            billItemRepository.save(newItem);
+        }
+
+        // ===================================================
+        // 7. DELETE TEMPORARY PAYMENT HISTORY
+        // ===================================================
+
+        List<PaymentHistory> temporaryPaymentHistories =
+                paymentHistoryRepository
+                        .findByBill_BillNumberOrderByPaymentDateDesc(
+                                temporaryBill.getBillNumber()
+                        );
+
+        if (!temporaryPaymentHistories.isEmpty()) {
+            paymentHistoryRepository.deleteAll(
+                    temporaryPaymentHistories
+            );
+            paymentHistoryRepository.flush();
+        }
+
+        // ===================================================
+        // 8. CREATE PAYMENT HISTORY FOR UPDATED BILL
+        // ===================================================
+
+        BigDecimal updatedPaidAmount =
+                savedExistingBill.getPaidAmount() == null
+                        ? BigDecimal.ZERO
+                        : savedExistingBill.getPaidAmount();
+
+        if (updatedPaidAmount.compareTo(BigDecimal.ZERO) > 0) {
+
+            PaymentHistory paymentHistory =
+                    PaymentHistory.builder()
+                            .bill(savedExistingBill)
+                            .customer(
+                                    savedExistingBill.getCustomer()
+                            )
+                            .amount(updatedPaidAmount)
+                            .paymentMode(
+                                    savedExistingBill.getPaymentMode()
+                            )
+                            .build();
+
+            paymentHistoryRepository.save(paymentHistory);
+        }
+
+        // ===================================================
+        // 9. REMOVE TEMPORARY BILL
+        // ===================================================
+
+        /*
+         * New items have already been moved to the original bill.
+         * Temporary payment history has already been removed.
+         * Therefore the temporary bill can now be deleted safely.
+         */
+
+        billRepository.delete(temporaryBill);
+        billRepository.flush();
+
+        // ===================================================
+        // 10. RETURN UPDATED ORIGINAL BILL
+        // ===================================================
+
+        return convertToDto(savedExistingBill);
+    }
+
     // =======================================================
     // GET BILL BY BILL NUMBER
     // =======================================================
@@ -954,6 +1230,65 @@ public class BillServiceImpl implements BillService {
                                         "Bill Not Found"
                                 ));
 
+        // ===================================================
+        // 1. RESTORE STOCK
+        // ===================================================
+
+        List<BillItem> billItems =
+                billItemRepository.findByBill(bill);
+
+        for (BillItem billItem : billItems) {
+
+            if (billItem.getJewelleryItem() != null) {
+
+                Integer quantity = billItem.getQuantity();
+
+                if (quantity != null && quantity > 0) {
+
+                    JewelleryItem jewelleryItem =
+                            billItem.getJewelleryItem();
+
+                    Integer currentStock =
+                            jewelleryItem.getStockQuantity();
+
+                    int restoredStock =
+                            (currentStock == null ? 0 : currentStock)
+                                    + quantity;
+
+                    jewelleryItem.setStockQuantity(restoredStock);
+
+                    jewelleryItemRepository.save(jewelleryItem);
+                }
+            }
+        }
+
+        // ===================================================
+        // 2. DELETE BILL ITEMS
+        // ===================================================
+
+        if (!billItems.isEmpty()) {
+            billItemRepository.deleteAll(billItems);
+            billItemRepository.flush();
+        }
+
+        // ===================================================
+        // 3. DELETE PAYMENT HISTORY
+        // ===================================================
+
+        List<PaymentHistory> paymentHistories =
+                paymentHistoryRepository
+                        .findByBill_BillNumberOrderByPaymentDateDesc(
+                                billNumber
+                        );
+
+        if (!paymentHistories.isEmpty()) {
+            paymentHistoryRepository.deleteAll(paymentHistories);
+            paymentHistoryRepository.flush();
+        }
+
+        // ===================================================
+        // 4. DELETE BILL
+        // ===================================================
 
         billRepository.delete(bill);
     }
@@ -963,15 +1298,73 @@ public class BillServiceImpl implements BillService {
     // GENERATE BILL NUMBER
     // =======================================================
 
-    private String generateBillNumber() {
+    private synchronized String generateBillNumber() {
 
-        long count =
-                billRepository.count() + 1;
+        /*
+         * IMPORTANT:
+         * Do NOT use billRepository.count() + 1 here.
+         *
+         * Example:
+         * BILL00001
+         * BILL00002  <- deleted
+         * BILL00003
+         *
+         * count() = 2, so count() + 1 would generate BILL00003
+         * again and PostgreSQL would throw a duplicate-key error.
+         *
+         * Instead, find the highest existing BILL number and generate
+         * the next number. Deleted bill numbers are NOT reused.
+         *
+         * synchronized also prevents two bill-creation requests from
+         * generating the same number inside this running application.
+         */
 
+        long maxBillNumber = 0;
+
+        List<Bill> allBills = billRepository.findAll();
+
+        for (Bill existingBill : allBills) {
+
+            String existingNumber =
+                    existingBill.getBillNumber();
+
+            if (existingNumber == null) {
+                continue;
+            }
+
+            existingNumber =
+                    existingNumber.trim().toUpperCase();
+
+            if (!existingNumber.startsWith("BILL")) {
+                continue;
+            }
+
+            String numberPart =
+                    existingNumber.substring(4);
+
+            try {
+
+                long number =
+                        Long.parseLong(numberPart);
+
+                if (number > maxBillNumber) {
+                    maxBillNumber = number;
+                }
+
+            } catch (NumberFormatException ignored) {
+                /*
+                 * Ignore old/invalid bill numbers such as
+                 * BILLTEST or other non-numeric values.
+                 */
+            }
+        }
+
+        long nextBillNumber =
+                maxBillNumber + 1;
 
         return String.format(
                 "BILL%05d",
-                count
+                nextBillNumber
         );
     }
 

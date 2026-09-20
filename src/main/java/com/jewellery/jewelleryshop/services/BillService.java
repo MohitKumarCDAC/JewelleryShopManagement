@@ -10,19 +10,17 @@ public interface BillService {
 
     BillDto createBill(BillDto billDto);
 
+    BillDto updateBill(String billNumber, BillDto billDto);
+
     BillDto getBillByBillNumber(String billNumber);
 
     List<BillDto> getAllBills();
 
-    BillDto payDueAmount(
-            String billNumber,
-            BigDecimal amount
-    );
+    BillDto payDueAmount(String billNumber, BigDecimal amount);
 
     void deleteBill(String billNumber);
 
-//customer ka sara bill
-   List<BillDto> getBillsByCustomerMobile(String mobileNumber);
-//outstanding(baki) bill ke liye
+    List<BillDto> getBillsByCustomerMobile(String mobileNumber);
+
     List<OutstandingBillDto> getOutstandingBills();
 }

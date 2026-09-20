@@ -16,37 +16,40 @@ public class BillController {
     @Autowired
     private BillService billService;
 
-
     @PostMapping
-    public BillDto createBill(
-            @RequestBody BillDto billDto
-    ) {
+    public BillDto createBill(@RequestBody BillDto billDto) {
         return billService.createBill(billDto);
     }
 
+    @PutMapping("/{billNumber}")
+    public BillDto updateBill(
+            @PathVariable String billNumber,
+            @RequestBody BillDto billDto) {
+
+        return billService.updateBill(
+                billNumber,
+                billDto
+        );
+    }
 
     @GetMapping("/{billNumber}")
     public BillDto getBillByBillNumber(
-            @PathVariable String billNumber
-    ) {
+            @PathVariable String billNumber) {
+
         return billService.getBillByBillNumber(
                 billNumber
         );
     }
 
-
     @GetMapping
     public List<BillDto> getAllBills() {
-
         return billService.getAllBills();
     }
-
 
     @PutMapping("/pay/{billNumber}")
     public BillDto payDueAmount(
             @PathVariable String billNumber,
-            @RequestParam BigDecimal amount
-    ) {
+            @RequestParam BigDecimal amount) {
 
         return billService.payDueAmount(
                 billNumber,
@@ -54,36 +57,26 @@ public class BillController {
         );
     }
 
-
     @DeleteMapping("/{billNumber}")
     public String deleteBill(
-            @PathVariable String billNumber
-    ) {
+            @PathVariable String billNumber) {
 
         billService.deleteBill(billNumber);
 
         return "Bill Deleted Successfully";
     }
 
-
     @GetMapping("/customer/{mobileNumber}")
     public List<BillDto> getBillsByCustomerMobile(
-            @PathVariable String mobileNumber
-    ) {
-        return billService.getBillsByCustomerMobile(mobileNumber);
+            @PathVariable String mobileNumber) {
+
+        return billService.getBillsByCustomerMobile(
+                mobileNumber
+        );
     }
-
-
-
-// ==============================
-// GET OUTSTANDING BILLS
-// ==============================
 
     @GetMapping("/outstanding")
     public List<OutstandingBillDto> getOutstandingBills() {
-
         return billService.getOutstandingBills();
     }
-
-
 }
