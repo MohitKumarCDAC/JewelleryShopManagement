@@ -1,0 +1,1015 @@
+package com.jewellery.jewelleryshop.services;
+
+import com.jewellery.jewelleryshop.entity.Bill;
+import com.jewellery.jewelleryshop.entity.BillItem;
+import com.jewellery.jewelleryshop.entity.Customer;
+import com.jewellery.jewelleryshop.entity.JewelleryItem;
+import com.jewellery.jewelleryshop.entity.PaymentHistory;
+
+import com.jewellery.jewelleryshop.repository.BillItemRepository;
+import com.jewellery.jewelleryshop.repository.BillRepository;
+import com.jewellery.jewelleryshop.repository.CustomerRepositry;
+import com.jewellery.jewelleryshop.repository.JewelleryItemRepository;
+import com.jewellery.jewelleryshop.repository.PaymentHistoryRepository;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+@Service
+public class BackupService {
+
+    private final CustomerRepositry customerRepository;
+    private final BillRepository billRepository;
+    private final BillItemRepository billItemRepository;
+    private final JewelleryItemRepository jewelleryItemRepository;
+    private final PaymentHistoryRepository paymentHistoryRepository;
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+
+    public BackupService(
+            CustomerRepositry customerRepository,
+            BillRepository billRepository,
+            BillItemRepository billItemRepository,
+            JewelleryItemRepository jewelleryItemRepository,
+            PaymentHistoryRepository paymentHistoryRepository
+    ) {
+        this.customerRepository = customerRepository;
+        this.billRepository = billRepository;
+        this.billItemRepository = billItemRepository;
+        this.jewelleryItemRepository = jewelleryItemRepository;
+        this.paymentHistoryRepository = paymentHistoryRepository;
+    }
+
+    public byte[] generateBackupExcel() {
+
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+
+            // =========================================================
+            // STYLES
+            // =========================================================
+
+            CellStyle headerStyle = createHeaderStyle(workbook);
+
+            CellStyle titleStyle = createTitleStyle(workbook);
+
+            CellStyle dateStyle = createDateStyle(workbook);
+
+            // =========================================================
+            // 1. CUSTOMERS
+            // =========================================================
+
+            createCustomersSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle,
+                    dateStyle
+            );
+
+            // =========================================================
+            // 2. BILLS
+            // =========================================================
+
+            createBillsSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle,
+                    dateStyle
+            );
+
+            // =========================================================
+            // 3. BILL ITEMS
+            // =========================================================
+
+            createBillItemsSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle
+            );
+
+            // =========================================================
+            // 4. STOCK
+            // =========================================================
+
+            createStockSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle,
+                    dateStyle
+            );
+
+            // =========================================================
+            // 5. PAYMENTS
+            // =========================================================
+
+            createPaymentsSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle,
+                    dateStyle
+            );
+
+            // =========================================================
+            // 6. OUTSTANDING
+            // =========================================================
+
+            createOutstandingSheet(
+                    workbook,
+                    headerStyle,
+                    titleStyle,
+                    dateStyle
+            );
+
+            workbook.write(outputStream);
+
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Failed to generate backup Excel file",
+                    e
+            );
+        }
+    }
+
+    // =============================================================
+    // CUSTOMERS SHEET
+    // =============================================================
+
+    private void createCustomersSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle,
+            CellStyle dateStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Customers");
+
+        Row titleRow = sheet.createRow(0);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("Mohit Jewellers - Customers Backup");
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+                "Customer ID",
+                "Customer Name",
+                "Mobile Number",
+                "Place",
+                "Created Date"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<Customer> customers = customerRepository.findAll();
+
+        int rowIndex = 3;
+
+        for (Customer customer : customers) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            row.createCell(0).setCellValue(customer.getId());
+            row.createCell(1).setCellValue(safe(customer.getCustomerName()));
+            row.createCell(2).setCellValue(safe(customer.getMobileNumber()));
+            row.createCell(3).setCellValue(safe(customer.getPlace()));
+
+            Cell dateCell = row.createCell(4);
+
+            if (customer.getCreatedDate() != null) {
+                dateCell.setCellValue(
+                        formatDate(customer.getCreatedDate())
+                );
+            } else {
+                dateCell.setCellValue("");
+            }
+
+            dateCell.setCellStyle(dateStyle);
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // BILLS SHEET
+    // =============================================================
+
+    private void createBillsSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle,
+            CellStyle dateStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Bills");
+
+        Row titleRow = sheet.createRow(0);
+        Cell titleCell = titleRow.createCell(0);
+
+        titleCell.setCellValue("Mohit Jewellers - Bills Backup");
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+
+                "Bill ID",
+                "Bill Number",
+                "Customer Name",
+                "Customer Mobile",
+
+                "Bill Date",
+
+                "Total Amount",
+                "Discount",
+                "GST Amount",
+                "Grand Total",
+
+                "Paid Amount",
+                "Due Amount",
+
+                "Gold Exchange Weight",
+                "Gold Exchange Rate",
+                "Gold Exchange Amount",
+
+                "Silver Exchange Weight",
+                "Silver Exchange Rate",
+                "Silver Exchange Amount",
+
+                "Total Exchange Amount",
+
+                "Status",
+                "Payment Mode"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<Bill> bills = billRepository.findAll();
+
+        int rowIndex = 3;
+
+        for (Bill bill : bills) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            row.createCell(0).setCellValue(
+                    bill.getId() != null ? bill.getId() : 0
+            );
+
+            row.createCell(1).setCellValue(
+                    safe(bill.getBillNumber())
+            );
+
+            if (bill.getCustomer() != null) {
+
+                row.createCell(2).setCellValue(
+                        safe(bill.getCustomer().getCustomerName())
+                );
+
+                row.createCell(3).setCellValue(
+                        safe(bill.getCustomer().getMobileNumber())
+                );
+
+            } else {
+
+                row.createCell(2).setCellValue("");
+                row.createCell(3).setCellValue("");
+            }
+
+            Cell billDateCell = row.createCell(4);
+
+            if (bill.getBillDate() != null) {
+
+                billDateCell.setCellValue(
+                        formatDate(bill.getBillDate())
+                );
+
+            } else {
+
+                billDateCell.setCellValue("");
+            }
+
+            billDateCell.setCellStyle(dateStyle);
+
+            row.createCell(5).setCellValue(
+                    decimal(bill.getTotalAmount())
+            );
+
+            row.createCell(6).setCellValue(
+                    decimal(bill.getDiscount())
+            );
+
+            row.createCell(7).setCellValue(
+                    decimal(bill.getGstAmount())
+            );
+
+            row.createCell(8).setCellValue(
+                    decimal(bill.getGrandTotal())
+            );
+
+            row.createCell(9).setCellValue(
+                    decimal(bill.getPaidAmount())
+            );
+
+            row.createCell(10).setCellValue(
+                    decimal(bill.getDueAmount())
+            );
+
+            row.createCell(11).setCellValue(
+                    decimal(bill.getGoldExchangeWeight())
+            );
+
+            row.createCell(12).setCellValue(
+                    decimal(bill.getGoldExchangeRate())
+            );
+
+            row.createCell(13).setCellValue(
+                    decimal(bill.getGoldExchangeAmount())
+            );
+
+            row.createCell(14).setCellValue(
+                    decimal(bill.getSilverExchangeWeight())
+            );
+
+            row.createCell(15).setCellValue(
+                    decimal(bill.getSilverExchangeRate())
+            );
+
+            row.createCell(16).setCellValue(
+                    decimal(bill.getSilverExchangeAmount())
+            );
+
+            row.createCell(17).setCellValue(
+                    decimal(bill.getTotalExchangeAmount())
+            );
+
+            row.createCell(18).setCellValue(
+                    bill.getStatus() != null
+                            ? bill.getStatus().toString()
+                            : ""
+            );
+
+            row.createCell(19).setCellValue(
+                    bill.getPaymentMode() != null
+                            ? bill.getPaymentMode().toString()
+                            : ""
+            );
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // BILL ITEMS SHEET
+    // =============================================================
+
+    private void createBillItemsSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Bill Items");
+
+        Row titleRow = sheet.createRow(0);
+
+        Cell titleCell = titleRow.createCell(0);
+
+        titleCell.setCellValue(
+                "Mohit Jewellers - Bill Items Backup"
+        );
+
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+
+                "Bill Number",
+                "Item ID",
+                "Stock Item Code",
+
+                "Item Name",
+
+                "Weight (gm)",
+                "Quantity",
+
+                "Metal Rate",
+                "Metal Amount",
+
+                "Making Charge %",
+                "Making Charge Type",
+                "Making Charge Value",
+                "Making Charge Amount",
+
+                "GST %",
+                "GST Amount",
+
+                "Item Total"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<BillItem> billItems =
+                billItemRepository.findAll();
+
+        int rowIndex = 3;
+
+        for (BillItem item : billItems) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            // Bill number
+            if (item.getBill() != null) {
+
+                row.createCell(0).setCellValue(
+                        safe(item.getBill().getBillNumber())
+                );
+
+            } else {
+
+                row.createCell(0).setCellValue("");
+            }
+
+            // Bill Item ID
+            row.createCell(1).setCellValue(
+                    item.getId() != null ? item.getId() : 0
+            );
+
+            // Stock item code
+            if (item.getJewelleryItem() != null) {
+
+                row.createCell(2).setCellValue(
+                        safe(item.getJewelleryItem().getItemCode())
+                );
+
+            } else {
+
+                row.createCell(2).setCellValue("");
+            }
+
+            // Item name
+            String itemName = item.getItemName();
+
+            if ((itemName == null || itemName.isBlank())
+                    && item.getJewelleryItem() != null) {
+
+                itemName =
+                        item.getJewelleryItem().getItemName();
+            }
+
+            row.createCell(3).setCellValue(
+                    safe(itemName)
+            );
+
+            row.createCell(4).setCellValue(
+                    decimal(item.getWeight())
+            );
+
+            row.createCell(5).setCellValue(
+                    item.getQuantity() != null
+                            ? item.getQuantity()
+                            : 0
+            );
+
+            row.createCell(6).setCellValue(
+                    decimal(item.getMetalRate())
+            );
+
+            row.createCell(7).setCellValue(
+                    decimal(item.getMetalAmount())
+            );
+
+            row.createCell(8).setCellValue(
+                    decimal(item.getMakingChargePercent())
+            );
+
+            row.createCell(9).setCellValue(
+                    safe(item.getMakingChargeType())
+            );
+
+            row.createCell(10).setCellValue(
+                    decimal(item.getMakingChargeValue())
+            );
+
+            row.createCell(11).setCellValue(
+                    decimal(item.getMakingChargeAmount())
+            );
+
+            row.createCell(12).setCellValue(
+                    decimal(item.getGstPercent())
+            );
+
+            row.createCell(13).setCellValue(
+                    decimal(item.getGstAmount())
+            );
+
+            row.createCell(14).setCellValue(
+                    decimal(item.getTotal())
+            );
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // STOCK SHEET
+    // =============================================================
+
+    private void createStockSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle,
+            CellStyle dateStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Stock");
+
+        Row titleRow = sheet.createRow(0);
+
+        Cell titleCell = titleRow.createCell(0);
+
+        titleCell.setCellValue(
+                "Mohit Jewellers - Stock Backup"
+        );
+
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+
+                "Stock ID",
+                "Item Code",
+                "Item Name",
+                "Category",
+                "Purity",
+                "Weight (gm)",
+                "Stock Quantity",
+                "Created Date"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<JewelleryItem> items =
+                jewelleryItemRepository.findAll();
+
+        int rowIndex = 3;
+
+        for (JewelleryItem item : items) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            row.createCell(0).setCellValue(
+                    item.getId() != null ? item.getId() : 0
+            );
+
+            row.createCell(1).setCellValue(
+                    safe(item.getItemCode())
+            );
+
+            row.createCell(2).setCellValue(
+                    safe(item.getItemName())
+            );
+
+            row.createCell(3).setCellValue(
+                    item.getCategory() != null
+                            ? item.getCategory().toString()
+                            : ""
+            );
+
+            row.createCell(4).setCellValue(
+                    item.getPurity() != null
+                            ? item.getPurity().toString()
+                            : ""
+            );
+
+            row.createCell(5).setCellValue(
+                    decimal(item.getWeight())
+            );
+
+            row.createCell(6).setCellValue(
+                    item.getStockQuantity() != null
+                            ? item.getStockQuantity()
+                            : 0
+            );
+
+            Cell dateCell = row.createCell(7);
+
+            if (item.getCreatedDate() != null) {
+
+                dateCell.setCellValue(
+                        formatDate(item.getCreatedDate())
+                );
+
+            } else {
+
+                dateCell.setCellValue("");
+            }
+
+            dateCell.setCellStyle(dateStyle);
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // PAYMENTS SHEET
+    // =============================================================
+
+    private void createPaymentsSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle,
+            CellStyle dateStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Payments");
+
+        Row titleRow = sheet.createRow(0);
+
+        Cell titleCell = titleRow.createCell(0);
+
+        titleCell.setCellValue(
+                "Mohit Jewellers - Payment History Backup"
+        );
+
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+
+                "Payment ID",
+                "Bill Number",
+
+                "Customer Name",
+                "Customer Mobile",
+
+                "Amount",
+                "Payment Date",
+                "Payment Mode"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<PaymentHistory> payments =
+                paymentHistoryRepository.findAll();
+
+        int rowIndex = 3;
+
+        for (PaymentHistory payment : payments) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            row.createCell(0).setCellValue(
+                    payment.getId() != null
+                            ? payment.getId()
+                            : 0
+            );
+
+            if (payment.getBill() != null) {
+
+                row.createCell(1).setCellValue(
+                        safe(payment.getBill().getBillNumber())
+                );
+
+            } else {
+
+                row.createCell(1).setCellValue("");
+            }
+
+            if (payment.getCustomer() != null) {
+
+                row.createCell(2).setCellValue(
+                        safe(payment.getCustomer().getCustomerName())
+                );
+
+                row.createCell(3).setCellValue(
+                        safe(payment.getCustomer().getMobileNumber())
+                );
+
+            } else {
+
+                row.createCell(2).setCellValue("");
+                row.createCell(3).setCellValue("");
+            }
+
+            row.createCell(4).setCellValue(
+                    decimal(payment.getAmount())
+            );
+
+            Cell dateCell = row.createCell(5);
+
+            if (payment.getPaymentDate() != null) {
+
+                dateCell.setCellValue(
+                        formatDate(payment.getPaymentDate())
+                );
+
+            } else {
+
+                dateCell.setCellValue("");
+            }
+
+            dateCell.setCellStyle(dateStyle);
+
+            row.createCell(6).setCellValue(
+                    payment.getPaymentMode() != null
+                            ? payment.getPaymentMode().toString()
+                            : ""
+            );
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // OUTSTANDING SHEET
+    // =============================================================
+
+    private void createOutstandingSheet(
+            Workbook workbook,
+            CellStyle headerStyle,
+            CellStyle titleStyle,
+            CellStyle dateStyle
+    ) {
+
+        Sheet sheet = workbook.createSheet("Outstanding");
+
+        Row titleRow = sheet.createRow(0);
+
+        Cell titleCell = titleRow.createCell(0);
+
+        titleCell.setCellValue(
+                "Mohit Jewellers - Outstanding Backup"
+        );
+
+        titleCell.setCellStyle(titleStyle);
+
+        Row headerRow = sheet.createRow(2);
+
+        String[] headers = {
+
+                "Bill Number",
+                "Bill Date",
+
+                "Customer Name",
+                "Customer Mobile",
+                "Customer Place",
+
+                "Grand Total",
+                "Paid Amount",
+                "Due Amount",
+
+                "Payment Mode",
+                "Status"
+        };
+
+        createHeaderRow(headerRow, headers, headerStyle);
+
+        List<Bill> outstandingBills =
+                billRepository.findByDueAmountGreaterThan(
+                        BigDecimal.ZERO
+                );
+
+        int rowIndex = 3;
+
+        for (Bill bill : outstandingBills) {
+
+            Row row = sheet.createRow(rowIndex++);
+
+            row.createCell(0).setCellValue(
+                    safe(bill.getBillNumber())
+            );
+
+            Cell billDateCell = row.createCell(1);
+
+            if (bill.getBillDate() != null) {
+
+                billDateCell.setCellValue(
+                        formatDate(bill.getBillDate())
+                );
+
+            } else {
+
+                billDateCell.setCellValue("");
+            }
+
+            billDateCell.setCellStyle(dateStyle);
+
+            if (bill.getCustomer() != null) {
+
+                row.createCell(2).setCellValue(
+                        safe(
+                                bill.getCustomer()
+                                        .getCustomerName()
+                        )
+                );
+
+                row.createCell(3).setCellValue(
+                        safe(
+                                bill.getCustomer()
+                                        .getMobileNumber()
+                        )
+                );
+
+                row.createCell(4).setCellValue(
+                        safe(
+                                bill.getCustomer()
+                                        .getPlace()
+                        )
+                );
+
+            } else {
+
+                row.createCell(2).setCellValue("");
+                row.createCell(3).setCellValue("");
+                row.createCell(4).setCellValue("");
+            }
+
+            row.createCell(5).setCellValue(
+                    decimal(bill.getGrandTotal())
+            );
+
+            row.createCell(6).setCellValue(
+                    decimal(bill.getPaidAmount())
+            );
+
+            row.createCell(7).setCellValue(
+                    decimal(bill.getDueAmount())
+            );
+
+            row.createCell(8).setCellValue(
+                    bill.getPaymentMode() != null
+                            ? bill.getPaymentMode().toString()
+                            : ""
+            );
+
+            row.createCell(9).setCellValue(
+                    bill.getStatus() != null
+                            ? bill.getStatus().toString()
+                            : ""
+            );
+        }
+
+        autoSizeColumns(sheet, headers.length);
+    }
+
+    // =============================================================
+    // COMMON METHODS
+    // =============================================================
+
+    private void createHeaderRow(
+            Row row,
+            String[] headers,
+            CellStyle headerStyle
+    ) {
+
+        for (int i = 0; i < headers.length; i++) {
+
+            Cell cell = row.createCell(i);
+
+            cell.setCellValue(headers[i]);
+
+            cell.setCellStyle(headerStyle);
+        }
+    }
+
+    private CellStyle createHeaderStyle(
+            Workbook workbook
+    ) {
+
+        CellStyle style = workbook.createCellStyle();
+
+        Font font = workbook.createFont();
+
+        font.setBold(true);
+        font.setColor(IndexedColors.WHITE.getIndex());
+
+        style.setFont(font);
+
+        style.setFillForegroundColor(
+                IndexedColors.DARK_BLUE.getIndex()
+        );
+
+        style.setFillPattern(
+                FillPatternType.SOLID_FOREGROUND
+        );
+
+        style.setAlignment(
+                HorizontalAlignment.CENTER
+        );
+
+        style.setVerticalAlignment(
+                VerticalAlignment.CENTER
+        );
+
+        style.setBorderBottom(
+                BorderStyle.THIN
+        );
+
+        style.setBorderTop(
+                BorderStyle.THIN
+        );
+
+        style.setBorderLeft(
+                BorderStyle.THIN
+        );
+
+        style.setBorderRight(
+                BorderStyle.THIN
+        );
+
+        return style;
+    }
+
+    private CellStyle createTitleStyle(
+            Workbook workbook
+    ) {
+
+        CellStyle style = workbook.createCellStyle();
+
+        Font font = workbook.createFont();
+
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 14);
+
+        style.setFont(font);
+
+        return style;
+    }
+
+    private CellStyle createDateStyle(
+            Workbook workbook
+    ) {
+
+        CellStyle style = workbook.createCellStyle();
+
+        style.setAlignment(
+                HorizontalAlignment.LEFT
+        );
+
+        return style;
+    }
+
+    private void autoSizeColumns(
+            Sheet sheet,
+            int columnCount
+    ) {
+
+        for (int i = 0; i < columnCount; i++) {
+
+            sheet.autoSizeColumn(i);
+
+            // Prevent extremely wide columns
+            int currentWidth = sheet.getColumnWidth(i);
+
+            int maxWidth = 256 * 35;
+
+            if (currentWidth > maxWidth) {
+                sheet.setColumnWidth(i, maxWidth);
+            }
+        }
+
+        sheet.createFreezePane(0, 3);
+    }
+
+    private String safe(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value;
+    }
+
+    private double decimal(BigDecimal value) {
+
+        if (value == null) {
+            return 0.0;
+        }
+
+        return value.doubleValue();
+    }
+
+    private String formatDate(LocalDateTime dateTime) {
+
+        if (dateTime == null) {
+            return "";
+        }
+
+        return dateTime.format(DATE_TIME_FORMATTER);
+    }
+}
