@@ -6,6 +6,10 @@ import com.jewellery.jewelleryshop.repository.BillRepository;
 import com.jewellery.jewelleryshop.repository.CustomerRepositry;
 import com.jewellery.jewelleryshop.repository.JewelleryItemRepository;
 import com.jewellery.jewelleryshop.repository.PaymentHistoryRepository;
+import com.jewellery.jewelleryshop.repository.GstInvoiceRepository;
+import com.jewellery.jewelleryshop.repository.GstInvoiceItemRepository;
+import com.jewellery.jewelleryshop.repository.GstExchangeItemRepository;
+import com.jewellery.jewelleryshop.repository.GstPaymentHistoryRepository;
 
 import jakarta.transaction.Transactional;
 
@@ -33,6 +37,10 @@ public class RestoreService {
     private final BillItemRepository billItemRepository;
     private final JewelleryItemRepository jewelleryItemRepository;
     private final PaymentHistoryRepository paymentHistoryRepository;
+    private final GstInvoiceRepository gstInvoiceRepository;
+    private final GstInvoiceItemRepository gstInvoiceItemRepository;
+    private final GstExchangeItemRepository gstExchangeItemRepository;
+    private final GstPaymentHistoryRepository gstPaymentHistoryRepository;
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
@@ -42,13 +50,21 @@ public class RestoreService {
             BillRepository billRepository,
             BillItemRepository billItemRepository,
             JewelleryItemRepository jewelleryItemRepository,
-            PaymentHistoryRepository paymentHistoryRepository
+            PaymentHistoryRepository paymentHistoryRepository,
+            GstInvoiceRepository gstInvoiceRepository,
+            GstInvoiceItemRepository gstInvoiceItemRepository,
+            GstExchangeItemRepository gstExchangeItemRepository,
+            GstPaymentHistoryRepository gstPaymentHistoryRepository
     ) {
         this.customerRepository = customerRepository;
         this.billRepository = billRepository;
         this.billItemRepository = billItemRepository;
         this.jewelleryItemRepository = jewelleryItemRepository;
         this.paymentHistoryRepository = paymentHistoryRepository;
+        this.gstInvoiceRepository = gstInvoiceRepository;
+        this.gstInvoiceItemRepository = gstInvoiceItemRepository;
+        this.gstExchangeItemRepository = gstExchangeItemRepository;
+        this.gstPaymentHistoryRepository = gstPaymentHistoryRepository;
     }
 
     /**
@@ -94,6 +110,14 @@ public class RestoreService {
              * JewelleryItems
              * Customers
              */
+
+            // GST payment history is independent from normal PaymentHistory.
+            gstPaymentHistoryRepository.deleteAllInBatch();
+
+            // GstInvoice has cascade + orphanRemoval for its GST items/exchange items.
+            // deleteAll() is intentionally used instead of deleteAllInBatch()
+            // so JPA cascade/orphanRemoval can clean child records safely.
+            gstInvoiceRepository.deleteAll();
 
             paymentHistoryRepository.deleteAllInBatch();
             billItemRepository.deleteAllInBatch();
@@ -147,6 +171,48 @@ public class RestoreService {
             restorePayments(workbook.getSheet("Payments"));
 
             /*
+             * =========================================================
+             * STEP 7
+             * RESTORE GST INVOICES
+             * =========================================================
+             */
+
+            restoreGstInvoices(workbook.getSheet("GST Invoices"));
+
+            /*
+             * =========================================================
+             * STEP 8
+             * RESTORE GST INVOICE ITEMS
+             * =========================================================
+             */
+
+            restoreGstInvoiceItems(
+                    workbook.getSheet("GST Invoice Items")
+            );
+
+            /*
+             * =========================================================
+             * STEP 9
+             * RESTORE GST EXCHANGE ITEMS
+             * =========================================================
+             */
+
+            restoreGstExchangeItems(
+                    workbook.getSheet("GST Exchange Items")
+            );
+
+            /*
+             * =========================================================
+             * STEP 10
+             * RESTORE GST PAYMENTS
+             * =========================================================
+             */
+
+            restoreGstPayments(
+                    workbook.getSheet("GST Payments")
+            );
+
+            /*
              * Outstanding sheet is NOT restored separately.
              *
              * Outstanding is derived from:
@@ -182,7 +248,11 @@ public class RestoreService {
                 "Bill Items",
                 "Stock",
                 "Payments",
-                "Outstanding"
+                "Outstanding",
+                "GST Invoices",
+                "GST Invoice Items",
+                "GST Exchange Items",
+                "GST Payments"
         };
 
         for (String sheetName : requiredSheets) {
@@ -651,6 +721,260 @@ public class RestoreService {
 
         System.out.println(
                 "Payments restored: " + restored
+        );
+    }
+
+
+
+    // ============================================================
+    // GST INVOICES
+    // ============================================================
+
+    private void restoreGstInvoices(Sheet sheet) {
+
+        int restored = 0;
+
+        for (int rowIndex = 3; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+            Row row = sheet.getRow(rowIndex);
+
+            if (isEmptyRow(row)) {
+                continue;
+            }
+
+            String invoiceNumber = getString(row, 1);
+
+            if (invoiceNumber.isBlank()) {
+                throw new RuntimeException(
+                        "GST Invoice restore failed at Excel row "
+                                + (rowIndex + 1)
+                                + ": Invoice Number is empty."
+                );
+            }
+
+            String invoiceDateString = getString(row, 3);
+
+            GstInvoice invoice = GstInvoice.builder()
+                    .invoiceNumber(invoiceNumber)
+                    .financialYear(getString(row, 2))
+                    .invoiceDateTime(
+                            invoiceDateString.isBlank()
+                                    ? LocalDateTime.now()
+                                    : parseDate(invoiceDateString)
+                    )
+                    .placeOfSupply(getString(row, 4))
+                    .placeOfSupplyStateCode(getString(row, 5))
+                    .sellerGstin(getString(row, 6))
+                    .customerName(getString(row, 7))
+                    .customerMobile(getString(row, 8))
+                    .customerAddress(getString(row, 9))
+                    .customerGstin(getString(row, 10))
+                    .taxableAmount(getDecimal(row, 11))
+                    .cgstAmount(getDecimal(row, 12))
+                    .sgstAmount(getDecimal(row, 13))
+                    .igstAmount(getDecimal(row, 14))
+                    .totalGstAmount(getDecimal(row, 15))
+                    .discountAmount(getDecimal(row, 16))
+                    .roundOff(getDecimal(row, 17))
+                    .grandTotal(getDecimal(row, 18))
+                    .totalExchangeAmount(getDecimal(row, 19))
+                    .cashAmount(getDecimal(row, 20))
+                    .upiAmount(getDecimal(row, 21))
+                    .cardAmount(getDecimal(row, 22))
+                    .otherAmount(getDecimal(row, 23))
+                    .paidAmount(getDecimal(row, 24))
+                    .dueAmount(getDecimal(row, 25))
+                    .paymentStatus(getString(row, 26))
+                    .reverseCharge(
+                            "TRUE".equalsIgnoreCase(getString(row, 27))
+                    )
+                    .build();
+
+            gstInvoiceRepository.save(invoice);
+
+            restored++;
+        }
+
+        System.out.println(
+                "GST invoices restored: " + restored
+        );
+    }
+
+
+    // ============================================================
+    // GST INVOICE ITEMS
+    // ============================================================
+
+    private void restoreGstInvoiceItems(Sheet sheet) {
+
+        int restored = 0;
+
+        for (int rowIndex = 3; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+            Row row = sheet.getRow(rowIndex);
+
+            if (isEmptyRow(row)) {
+                continue;
+            }
+
+            String invoiceNumber = getString(row, 0);
+
+            if (invoiceNumber.isBlank()) {
+                throw new RuntimeException(
+                        "GST Invoice Item restore failed at Excel row "
+                                + (rowIndex + 1)
+                                + ": Invoice Number is empty."
+                );
+            }
+
+            GstInvoice invoice =
+                    gstInvoiceRepository
+                            .findByInvoiceNumber(invoiceNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "GST Invoice Item refers to GST Invoice "
+                                                    + invoiceNumber
+                                                    + " but GST Invoice was not found."
+                                    )
+                            );
+
+            GstInvoiceItem item = GstInvoiceItem.builder()
+                    .gstInvoice(invoice)
+                    .itemCode(getString(row, 2))
+                    .itemName(getString(row, 3))
+                    .hsnCode(getString(row, 4))
+                    .metalType(getString(row, 5))
+                    .purity(getString(row, 6))
+                    .quantity(getDecimal(row, 7))
+                    .weight(getDecimal(row, 8))
+                    .metalRate(getDecimal(row, 9))
+                    .metalAmount(getDecimal(row, 10))
+                    .makingChargeType(getString(row, 11))
+                    .makingChargeValue(getDecimal(row, 12))
+                    .makingChargeAmount(getDecimal(row, 13))
+                    .discountAmount(getDecimal(row, 14))
+                    .taxableAmount(getDecimal(row, 15))
+                    .gstPercent(getDecimal(row, 16))
+                    .cgstAmount(getDecimal(row, 17))
+                    .sgstAmount(getDecimal(row, 18))
+                    .igstAmount(getDecimal(row, 19))
+                    .totalAmount(getDecimal(row, 20))
+                    .build();
+
+            gstInvoiceItemRepository.save(item);
+
+            restored++;
+        }
+
+        System.out.println(
+                "GST invoice items restored: " + restored
+        );
+    }
+
+
+    // ============================================================
+    // GST EXCHANGE ITEMS
+    // ============================================================
+
+    private void restoreGstExchangeItems(Sheet sheet) {
+
+        int restored = 0;
+
+        for (int rowIndex = 3; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+            Row row = sheet.getRow(rowIndex);
+
+            if (isEmptyRow(row)) {
+                continue;
+            }
+
+            String invoiceNumber = getString(row, 0);
+
+            if (invoiceNumber.isBlank()) {
+                throw new RuntimeException(
+                        "GST Exchange Item restore failed at Excel row "
+                                + (rowIndex + 1)
+                                + ": Invoice Number is empty."
+                );
+            }
+
+            GstInvoice invoice =
+                    gstInvoiceRepository
+                            .findByInvoiceNumber(invoiceNumber)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "GST Exchange Item refers to GST Invoice "
+                                                    + invoiceNumber
+                                                    + " but GST Invoice was not found."
+                                    )
+                            );
+
+            GstExchangeItem item = GstExchangeItem.builder()
+                    .gstInvoice(invoice)
+                    .metalType(getString(row, 2))
+                    .weight(getDecimal(row, 3))
+                    .rate(getDecimal(row, 4))
+                    .amount(getDecimal(row, 5))
+                    .build();
+
+            gstExchangeItemRepository.save(item);
+
+            restored++;
+        }
+
+        System.out.println(
+                "GST exchange items restored: " + restored
+        );
+    }
+
+
+    // ============================================================
+    // GST PAYMENTS
+    // ============================================================
+
+    private void restoreGstPayments(Sheet sheet) {
+
+        int restored = 0;
+
+        for (int rowIndex = 3; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+            Row row = sheet.getRow(rowIndex);
+
+            if (isEmptyRow(row)) {
+                continue;
+            }
+
+            String invoiceNumber = getString(row, 1);
+
+            if (invoiceNumber.isBlank()) {
+                throw new RuntimeException(
+                        "GST Payment restore failed at Excel row "
+                                + (rowIndex + 1)
+                                + ": Invoice Number is empty."
+                );
+            }
+
+            GstPaymentHistory payment =
+                    GstPaymentHistory.builder()
+                            .invoiceNumber(invoiceNumber)
+                            .customerName(getString(row, 2))
+                            .customerMobile(getString(row, 3))
+                            .amount(getDecimal(row, 4))
+                            .paymentDate(
+                                    getString(row, 5).isBlank()
+                                            ? LocalDateTime.now()
+                                            : parseDate(getString(row, 5))
+                            )
+                            .paymentMode(getString(row, 6))
+                            .build();
+
+            gstPaymentHistoryRepository.save(payment);
+
+            restored++;
+        }
+
+        System.out.println(
+                "GST payments restored: " + restored
         );
     }
 

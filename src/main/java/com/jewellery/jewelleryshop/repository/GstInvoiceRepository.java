@@ -4,6 +4,7 @@ import com.jewellery.jewelleryshop.entity.GstInvoice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,4 +16,12 @@ public interface GstInvoiceRepository extends JpaRepository<GstInvoice, Long> {
     boolean existsByInvoiceNumber(String invoiceNumber);
 
     List<GstInvoice> findAllByOrderByInvoiceDateTimeDesc();
+
+    List<GstInvoice> findByCustomerMobileOrderByInvoiceDateTimeDesc(
+            String customerMobile
+    );
+
+    List<GstInvoice> findByDueAmountGreaterThanOrderByInvoiceDateTimeDesc(
+            BigDecimal amount
+    );
 }

@@ -48,5 +48,7 @@ public class BillDto {
 
     private BigDecimal totalExchangeAmount;
 
+    private BigDecimal exchangeAmount;
+
     private LocalDateTime billDate;
 }

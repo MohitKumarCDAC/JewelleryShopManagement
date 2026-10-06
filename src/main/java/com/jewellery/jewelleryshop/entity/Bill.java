@@ -70,6 +70,11 @@ public class Bill {
     @Builder.Default
     private BigDecimal totalExchangeAmount = BigDecimal.ZERO;
 
+    //exchange amount ke liye add kiye hai
+    @Column(name = "exchange_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal exchangeAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     private BillStatus status;
 

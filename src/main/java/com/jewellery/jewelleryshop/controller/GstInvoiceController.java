@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -15,9 +16,7 @@ import java.util.List;
 public class GstInvoiceController {
 
     private final GstInvoiceNumberService gstInvoiceNumberService;
-
     private final GstInvoiceService gstInvoiceService;
-
 
     // =========================================================
     // CONSTRUCTOR
@@ -31,7 +30,6 @@ public class GstInvoiceController {
         this.gstInvoiceService = gstInvoiceService;
     }
 
-
     // =========================================================
     // GENERATE GST INVOICE NUMBER
     // =========================================================
@@ -42,7 +40,6 @@ public class GstInvoiceController {
         return gstInvoiceNumberService
                 .generateNextInvoiceNumber();
     }
-
 
     // =========================================================
     // CREATE GST INVOICE
@@ -63,6 +60,25 @@ public class GstInvoiceController {
                 .body(savedInvoice);
     }
 
+    // =========================================================
+    // UPDATE GST INVOICE
+    // =========================================================
+
+    @PutMapping("/update")
+    public ResponseEntity<GstInvoiceDto> updateInvoice(
+            @RequestParam String invoiceNumber,
+            @RequestBody GstInvoiceDto invoiceDto
+    ) {
+
+        GstInvoiceDto updatedInvoice =
+                gstInvoiceService.updateInvoice(
+                        invoiceNumber,
+                        invoiceDto
+                );
+
+        return ResponseEntity.ok(updatedInvoice);
+    }
+
 
     // =========================================================
     // GET GST INVOICE BY INVOICE NUMBER
@@ -81,7 +97,6 @@ public class GstInvoiceController {
         return ResponseEntity.ok(invoice);
     }
 
-
     // =========================================================
     // GET ALL GST INVOICES
     // =========================================================
@@ -95,10 +110,62 @@ public class GstInvoiceController {
         return ResponseEntity.ok(invoices);
     }
 
+    // =========================================================
+    // GET GST INVOICES BY CUSTOMER MOBILE
+    // =========================================================
+
+    @GetMapping("/customer")
+    public ResponseEntity<List<GstInvoiceDto>>
+    getInvoicesByCustomerMobile(
+            @RequestParam String mobile
+    ) {
+
+        List<GstInvoiceDto> invoices =
+                gstInvoiceService.getInvoicesByCustomerMobile(
+                        mobile
+                );
+
+        return ResponseEntity.ok(invoices);
+    }
 
     // =========================================================
-// DELETE GST INVOICE
-// =========================================================
+    // GET OUTSTANDING GST INVOICES
+    // =========================================================
+
+    @GetMapping("/outstanding")
+    public ResponseEntity<List<GstInvoiceDto>>
+    getOutstandingInvoices() {
+
+        List<GstInvoiceDto> invoices =
+                gstInvoiceService.getOutstandingInvoices();
+
+        return ResponseEntity.ok(invoices);
+    }
+
+    // =========================================================
+    // PAY GST INVOICE DUE
+    // =========================================================
+
+    @PutMapping("/pay")
+    public ResponseEntity<GstInvoiceDto> payDue(
+            @RequestParam String invoiceNumber,
+            @RequestParam BigDecimal amount,
+            @RequestParam(defaultValue = "CASH") String paymentMode
+    ) {
+
+        GstInvoiceDto updatedInvoice =
+                gstInvoiceService.payDue(
+                        invoiceNumber,
+                        amount,
+                        paymentMode
+                );
+
+        return ResponseEntity.ok(updatedInvoice);
+    }
+
+    // =========================================================
+    // DELETE GST INVOICE
+    // =========================================================
 
     @DeleteMapping("/delete")
     public ResponseEntity<String> deleteInvoice(

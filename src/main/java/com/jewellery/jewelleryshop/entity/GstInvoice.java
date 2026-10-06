@@ -32,169 +32,146 @@ public class GstInvoice {
     // INVOICE IDENTIFICATION
     // =========================================================
 
-    @Column(
-            name = "invoice_number",
-            nullable = false,
-            unique = true,
-            length = 30
-    )
+    @Column(name = "invoice_number", nullable = false, unique = true, length = 30)
     private String invoiceNumber;
 
-    @Column(
-            name = "financial_year",
-            nullable = false,
-            length = 10
-    )
+    @Column(name = "financial_year", nullable = false, length = 10)
     private String financialYear;
 
-    @Column(
-            name = "invoice_date_time",
-            nullable = false
-    )
+    @Column(name = "invoice_date_time", nullable = false)
     private LocalDateTime invoiceDateTime;
-
 
     // =========================================================
     // PLACE OF SUPPLY
     // =========================================================
 
-    @Column(
-            name = "place_of_supply",
-            length = 100
-    )
+    @Column(name = "place_of_supply", length = 100)
     private String placeOfSupply;
 
-    @Column(
-            name = "place_of_supply_state_code",
-            length = 10
-    )
+    @Column(name = "place_of_supply_state_code", length = 10)
     private String placeOfSupplyStateCode;
-
 
     // =========================================================
     // SELLER GST DETAILS
     // =========================================================
 
-    @Column(
-            name = "seller_gstin",
-            length = 15
-    )
+    @Column(name = "seller_gstin", length = 15)
     private String sellerGstin;
-
 
     // =========================================================
     // CUSTOMER GST DETAILS
     // =========================================================
 
-    @Column(
-            name = "customer_name",
-            length = 150
-    )
+    @Column(name = "customer_name", length = 150)
     private String customerName;
 
-    @Column(
-            name = "customer_mobile",
-            length = 20
-    )
+    @Column(name = "customer_mobile", length = 20)
     private String customerMobile;
 
-    @Column(
-            name = "customer_address",
-            length = 500
-    )
+    @Column(name = "customer_address", length = 500)
     private String customerAddress;
 
-    @Column(
-            name = "customer_gstin",
-            length = 15
-    )
+    @Column(name = "customer_gstin", length = 15)
     private String customerGstin;
-
 
     // =========================================================
     // TAX SUMMARY
     // =========================================================
 
-    @Column(
-            name = "taxable_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "taxable_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal taxableAmount = BigDecimal.ZERO;
 
-    @Column(
-            name = "cgst_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "cgst_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal cgstAmount = BigDecimal.ZERO;
 
-    @Column(
-            name = "sgst_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "sgst_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal sgstAmount = BigDecimal.ZERO;
 
-    @Column(
-            name = "igst_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "igst_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal igstAmount = BigDecimal.ZERO;
 
-    @Column(
-            name = "total_gst_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "total_gst_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal totalGstAmount = BigDecimal.ZERO;
-
 
     // =========================================================
     // TOTALS
     // =========================================================
 
-    @Column(
-            name = "discount_amount",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "discount_amount", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
-    @Column(
-            name = "round_off",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "round_off", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal roundOff = BigDecimal.ZERO;
 
-    @Column(
-            name = "grand_total",
-            precision = 19,
-            scale = 2
-    )
+    @Column(name = "grand_total", precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal grandTotal = BigDecimal.ZERO;
 
+    // =========================================================
+    // EXCHANGE JEWELLERY
+    // =========================================================
+
+    @OneToMany(
+            mappedBy = "gstInvoice",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<GstExchangeItem> exchangeItems;
+
+    @Column(name = "total_exchange_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal totalExchangeAmount = BigDecimal.ZERO;
+
+    // =========================================================
+    // PAYMENT DETAILS
+    // =========================================================
+
+    @Column(name = "cash_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal cashAmount = BigDecimal.ZERO;
+
+    @Column(name = "upi_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal upiAmount = BigDecimal.ZERO;
+
+    @Column(name = "card_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal cardAmount = BigDecimal.ZERO;
+
+    @Column(name = "other_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal otherAmount = BigDecimal.ZERO;
+
+    @Column(name = "paid_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal paidAmount = BigDecimal.ZERO;
+
+    @Column(name = "due_amount", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal dueAmount = BigDecimal.ZERO;
+
+    @Column(name = "payment_status", length = 20)
+    @Builder.Default
+    private String paymentStatus = "DUE";
 
     // =========================================================
     // GST SETTINGS
     // =========================================================
 
-    @Column(
-            name = "reverse_charge"
-    )
+    @Column(name = "reverse_charge")
     @Builder.Default
     private Boolean reverseCharge = false;
 
+    // =========================================================
+    // SALE ITEMS
+    // =========================================================
 
     @OneToMany(
             mappedBy = "gstInvoice",

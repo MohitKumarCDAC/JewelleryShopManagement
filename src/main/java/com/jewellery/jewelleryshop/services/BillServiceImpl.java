@@ -96,6 +96,11 @@ public class BillServiceImpl implements BillService {
                         ? BigDecimal.ZERO
                         : billDto.getSilverExchangeAmount();
 
+        BigDecimal exchangeAmount =
+                billDto.getExchangeAmount() == null
+                        ? BigDecimal.ZERO
+                        : billDto.getExchangeAmount();
+
 
         // ===================================================
         // EXCHANGE VALIDATION
@@ -106,7 +111,8 @@ public class BillServiceImpl implements BillService {
                 || goldExchangeAmount.compareTo(BigDecimal.ZERO) < 0
                 || silverExchangeWeight.compareTo(BigDecimal.ZERO) < 0
                 || silverExchangeRate.compareTo(BigDecimal.ZERO) < 0
-                || silverExchangeAmount.compareTo(BigDecimal.ZERO) < 0) {
+                || silverExchangeAmount.compareTo(BigDecimal.ZERO) < 0
+                || exchangeAmount.compareTo(BigDecimal.ZERO) < 0) {
 
             throw new RuntimeException(
                     "Exchange weight, rate and amount cannot be negative"
@@ -120,6 +126,9 @@ public class BillServiceImpl implements BillService {
 
         BigDecimal totalExchangeAmount =
                 goldExchangeAmount.add(silverExchangeAmount);
+
+        BigDecimal totalExchangeDeduction =
+                totalExchangeAmount.add(exchangeAmount);
 
 
         // ===================================================
@@ -145,6 +154,7 @@ public class BillServiceImpl implements BillService {
                 .silverExchangeAmount(silverExchangeAmount)
 
                 .totalExchangeAmount(totalExchangeAmount)
+                .exchangeAmount(exchangeAmount)
 
                 .paidAmount(
                         billDto.getPaidAmount() == null
@@ -340,11 +350,15 @@ public class BillServiceImpl implements BillService {
             // =================================================
             // MAKING CHARGE
             //
-            // Weight < 1 gram
-            //     -> Making Charge = RUPEES
+            // Type is selected explicitly by the frontend:
+            // PERCENT  -> percentage of metal amount
+            // PER_GRAM -> rupees per gram
+            // RUPEES   -> fixed rupee amount
             //
-            // Weight >= 1 gram
-            //     -> Making Charge = PERCENTAGE
+            // IMPORTANT:
+            // No automatic weight-based selection is used for new
+            // requests. The old fallback below is retained only for
+            // backward compatibility with older API requests.
             // =================================================
 
             BigDecimal makingValue =
@@ -377,26 +391,25 @@ public class BillServiceImpl implements BillService {
                     makingType.trim().toUpperCase();
 
 
+            if (makingValue.compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException(
+                        "Making charge cannot be negative"
+                );
+            }
+
+
             BigDecimal makingChargeAmount;
 
 
             if ("RUPEES".equals(makingType)) {
 
-                // =========================================
-                // BELOW 1 GRAM
-                // DIRECT RUPEE AMOUNT
-                // =========================================
-
+                // Fixed Amount -> entered rupee amount
                 makingChargeAmount =
-                        makingValue;
+                        makingValue.setScale(2, RoundingMode.HALF_UP);
 
             } else if ("PERCENT".equals(makingType)) {
 
-                // =========================================
-                // 1 GRAM OR ABOVE
-                // PERCENTAGE OF METAL AMOUNT
-                // =========================================
-
+                // % Charge -> percentage of metal amount
                 makingChargeAmount =
                         metalAmount
                                 .multiply(makingValue)
@@ -406,11 +419,21 @@ public class BillServiceImpl implements BillService {
                                         RoundingMode.HALF_UP
                                 );
 
+            } else if ("PER_GRAM".equals(makingType)) {
+
+                // Per Gram Charge -> weight x quantity x rupees/gram
+                makingChargeAmount =
+                        weight
+                                .multiply(quantity)
+                                .multiply(makingValue)
+                                .setScale(2, RoundingMode.HALF_UP);
+
             } else {
 
                 throw new RuntimeException(
                         "Invalid making charge type: "
                                 + makingType
+                                + ". Allowed: PERCENT, PER_GRAM, RUPEES"
                 );
             }
 
@@ -589,7 +612,7 @@ public class BillServiceImpl implements BillService {
                 totalAmount
                         .add(totalGst)
                         .subtract(discount)
-                        .subtract(totalExchangeAmount);
+                        .subtract(totalExchangeDeduction);
 
 
         if (grandTotal.compareTo(BigDecimal.ZERO) < 0) {
@@ -930,6 +953,10 @@ public class BillServiceImpl implements BillService {
 
         existingBill.setTotalExchangeAmount(
                 temporaryBill.getTotalExchangeAmount()
+        );
+
+        existingBill.setExchangeAmount(
+                temporaryBill.getExchangeAmount()
         );
 
         existingBill.setStatus(
@@ -1557,6 +1584,12 @@ public class BillServiceImpl implements BillService {
                         bill.getTotalExchangeAmount() == null
                                 ? BigDecimal.ZERO
                                 : bill.getTotalExchangeAmount()
+                )
+
+                .exchangeAmount(
+                        bill.getExchangeAmount() == null
+                                ? BigDecimal.ZERO
+                                : bill.getExchangeAmount()
                 )
 
                 .build();
